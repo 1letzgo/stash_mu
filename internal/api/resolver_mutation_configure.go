@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/stashapp/stash/pkg/user"
 	"io/fs"
 	"path/filepath"
 	"regexp"
@@ -333,27 +334,34 @@ func (r *mutationResolver) ConfigureGeneral(ctx context.Context, input ConfigGen
 		c.SetString(config.GalleryCoverRegex, *input.GalleryCoverRegex)
 	}
 
-	if input.Username != nil && *input.Username != c.GetUsername() {
-		c.SetString(config.Username, *input.Username)
-		if *input.Password == "" {
-			logger.Info("Username cleared")
-		} else {
-			logger.Info("Username changed")
+	if manager.GetInstance().Users.HasUsers() {
+		// multi-user: credentials apply to the current user
+		if err := updateCurrentUserCredentials(ctx, input.Username, input.Password); err != nil {
+			return makeConfigGeneralResult(), err
 		}
-	}
-
-	if input.Password != nil {
-		// bit of a hack - check if the passed in password is the same as the stored hash
-		// and only set if they are different
-		currentPWHash := c.GetPasswordHash()
-
-		if *input.Password != currentPWHash {
+	} else {
+		if input.Username != nil && *input.Username != c.GetUsername() {
+			c.SetString(config.Username, *input.Username)
 			if *input.Password == "" {
-				logger.Info("Password cleared")
+				logger.Info("Username cleared")
 			} else {
-				logger.Info("Password changed")
+				logger.Info("Username changed")
 			}
-			c.SetPassword(*input.Password)
+		}
+
+		if input.Password != nil {
+			// bit of a hack - check if the passed in password is the same as the stored hash
+			// and only set if they are different
+			currentPWHash := c.GetPasswordHash()
+
+			if *input.Password != currentPWHash {
+				if *input.Password == "" {
+					logger.Info("Password cleared")
+				} else {
+					logger.Info("Password changed")
+				}
+				c.SetPassword(*input.Password)
+			}
 		}
 	}
 
@@ -475,6 +483,11 @@ func (r *mutationResolver) ConfigureGeneral(ctx context.Context, input ConfigGen
 	}
 	if refreshPluginSource {
 		manager.GetInstance().RefreshPluginSourceManager()
+	}
+
+	// create the primary user account if credentials were set for the first time
+	if err := manager.GetInstance().Users.EnsurePrimaryFromConfig(ctx); err != nil {
+		logger.Errorf("creating primary user: %v", err)
 	}
 
 	return makeConfigGeneralResult(), nil
@@ -664,6 +677,12 @@ func (r *mutationResolver) ConfigureDefaults(ctx context.Context, input ConfigDe
 
 func (r *mutationResolver) GenerateAPIKey(ctx context.Context, input GenerateAPIKeyInput) (string, error) {
 	c := config.GetInstance()
+
+	if users := manager.GetInstance().Users; users.HasUsers() {
+		// multi-user: generate the key of the current user
+		clear := input.Clear != nil && *input.Clear
+		return users.GenerateAPIKey(ctx, user.CurrentID(ctx), clear)
+	}
 
 	var newAPIKey string
 	if input.Clear == nil || !*input.Clear {

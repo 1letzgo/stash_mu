@@ -366,6 +366,31 @@ type Config struct {
 
 	// cached values for high-frequency calls
 	publicIPWhitelist ipWhitelist
+
+	// userProvider provides the database-backed user accounts. When it is
+	// unset or has no users, the single legacy credentials in the config file
+	// are used.
+	userProvider UserCredentialProvider
+}
+
+// UserCredentialProvider provides access to the database-backed user accounts.
+type UserCredentialProvider interface {
+	// HasUsers returns true if at least one user account exists.
+	HasUsers() bool
+	// ValidateUserCredentials returns true if the username and password match
+	// a user account.
+	ValidateUserCredentials(username string, password string) bool
+	// UsernameForAPIKey returns the username of the user owning the api key.
+	UsernameForAPIKey(apiKey string) (string, bool)
+}
+
+// SetUserCredentialProvider sets the provider used to authenticate users.
+func (i *Config) SetUserCredentialProvider(p UserCredentialProvider) {
+	i.userProvider = p
+}
+
+func (i *Config) hasUserAccounts() bool {
+	return i.userProvider != nil && i.userProvider.HasUsers()
 }
 
 var instance *Config
@@ -1197,6 +1222,23 @@ func (i *Config) GetAPIKey() string {
 	return i.getString(ApiKey)
 }
 
+// ResolveAPIKey returns the username associated with the provided api key.
+func (i *Config) ResolveAPIKey(apiKey string) (string, bool) {
+	if apiKey == "" {
+		return "", false
+	}
+
+	if i.hasUserAccounts() {
+		return i.userProvider.UsernameForAPIKey(apiKey)
+	}
+
+	if k := i.GetAPIKey(); k != "" && k == apiKey {
+		return i.GetUsername(), true
+	}
+
+	return "", false
+}
+
 func (i *Config) GetUsername() string {
 	return i.getString(Username)
 }
@@ -1214,6 +1256,10 @@ func (i *Config) GetCredentials() (string, string) {
 }
 
 func (i *Config) HasCredentials() bool {
+	if i.hasUserAccounts() {
+		return true
+	}
+
 	username := i.getString(Username)
 	pwHash := i.getString(Password)
 
@@ -1227,6 +1273,10 @@ func hashPassword(password string) string {
 }
 
 func (i *Config) ValidateCredentials(username string, password string) bool {
+	if i.hasUserAccounts() {
+		return i.userProvider.ValidateUserCredentials(username, password)
+	}
+
 	if !i.HasCredentials() {
 		// don't need to authenticate if no credentials saved
 		return true

@@ -251,6 +251,12 @@ type Query {
   # System status
   systemStatus: SystemStatus!
 
+  # Users
+  "Returns the currently authenticated user. When authentication is not configured, returns the system user."
+  me: User!
+  "Returns all users. Requires the admin role."
+  findUsers: [User!]!
+
   # Job status
   jobQueue: [Job!]
   findJob(input: FindJobInput!): Job
@@ -464,6 +470,18 @@ type Mutation {
 
   "Generate and set (or clear) API key"
   generateAPIKey(input: GenerateAPIKeyInput!): String!
+
+  # Users
+  "Creates a user. Requires the admin role. The first user created is always an admin."
+  userCreate(input: UserCreateInput!): User!
+  "Updates a user. Requires the admin role."
+  userUpdate(input: UserUpdateInput!): User!
+  "Deletes a user and all of their per-user data. Requires the admin role."
+  userDestroy(id: ID!): Boolean!
+  "Generates (or clears) the api key of a user. Requires the admin role. Returns the new key."
+  userGenerateAPIKey(input: UserGenerateAPIKeyInput!): String!
+  "Changes the password of the current user"
+  changePassword(input: UserChangePasswordInput!): Boolean!
 
   "Returns a link to download the result"
   exportObjects(input: ExportObjectsInput!): String

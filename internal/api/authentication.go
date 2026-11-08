@@ -14,6 +14,7 @@ import (
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/session"
 	"github.com/stashapp/stash/pkg/signedurl"
+	"github.com/stashapp/stash/pkg/user"
 )
 
 func allowUnauthenticated(r *http.Request) bool {
@@ -82,11 +83,14 @@ func authenticateHandler() func(http.Handler) http.Handler {
 
 			// Check for signed media requests
 			if username, ok := authenticateSignedRequest(r); ok {
-				ctx := r.Context()
-				ctx = session.SetCurrentUserID(ctx, username)
-				r = r.WithContext(ctx)
-				next.ServeHTTP(w, r)
-				return
+				if principal, found := manager.GetInstance().Users.Principal(username); found {
+					ctx := r.Context()
+					ctx = session.SetCurrentUserID(ctx, username)
+					ctx = user.WithUser(ctx, principal)
+					r = r.WithContext(ctx)
+					next.ServeHTTP(w, r)
+					return
+				}
 			}
 
 			userID, err := manager.GetInstance().SessionStore.Authenticate(w, r)
@@ -119,7 +123,23 @@ func authenticateHandler() func(http.Handler) http.Handler {
 				}
 			}
 
+			principal := user.System
 			if c.HasCredentials() {
+				if userID != "" {
+					// resolve the user account. The account may have been
+					// deleted since the session was created.
+					p, found := manager.GetInstance().Users.Principal(userID)
+					if found {
+						principal = p
+						if p.Username != "" {
+							// use the canonical username
+							userID = p.Username
+						}
+					} else {
+						userID = ""
+					}
+				}
+
 				// authentication is required
 				if userID == "" && !allowUnauthenticated(r) {
 					// if graphql or a non-webpage was requested, we just return a forbidden error
@@ -149,6 +169,9 @@ func authenticateHandler() func(http.Handler) http.Handler {
 			}
 
 			ctx = session.SetCurrentUserID(ctx, userID)
+			if userID != "" || !c.HasCredentials() {
+				ctx = user.WithUser(ctx, principal)
+			}
 
 			r = r.WithContext(ctx)
 

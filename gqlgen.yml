@@ -49,6 +49,8 @@ models:
     model: github.com/stashapp/stash/pkg/models.Group
   MovieFilterType:
     model: github.com/stashapp/stash/pkg/models.GroupFilterType
+  UserRole:
+    model: github.com/stashapp/stash/pkg/user.Role
   # autobind on config causes generation issues
   BlobsStorageType:
     model: github.com/stashapp/stash/internal/manager/config.BlobsStorageType

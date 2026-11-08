@@ -13,7 +13,9 @@ import (
 )
 
 func (r *queryResolver) Configuration(ctx context.Context) (*ConfigResult, error) {
-	return makeConfigResult(), nil
+	ret := makeConfigResult()
+	personaliseConfigResult(ctx, ret)
+	return ret, nil
 }
 
 func (r *queryResolver) Directory(ctx context.Context, path, locale *string) (*Directory, error) {

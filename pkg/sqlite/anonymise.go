@@ -46,6 +46,7 @@ func (db *Anonymiser) Anonymise(ctx context.Context) error {
 
 		return utils.Do([]func() error{
 			func() error { return db.deleteBlobs() },
+			func() error { return db.anonymiseUsers() },
 			func() error { return db.deleteStashIDs() },
 			func() error { return db.clearOHistory() },
 			func() error { return db.clearWatchHistory() },
@@ -95,6 +96,12 @@ func (db *Anonymiser) deleteBlobs() error {
 
 		func() error { return db.truncateTable(blobTable) },
 	})
+}
+
+// anonymiseUsers removes credentials and replaces user names.
+func (db *Anonymiser) anonymiseUsers() error {
+	_, err := db.writeDB.Exec("UPDATE " + userTable + " SET username = 'user' || id, password_hash = '', api_key = NULL, ui_config = NULL")
+	return err
 }
 
 func (db *Anonymiser) deleteStashIDs() error {

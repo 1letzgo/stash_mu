@@ -703,6 +703,10 @@ func runTests(m *testing.M) int {
 
 func populateDB() error {
 	if err := withTxn(func(ctx context.Context) error {
+		if err := createUsers(ctx); err != nil {
+			return fmt.Errorf("creating users: %w", err)
+		}
+
 		if err := createFolders(ctx); err != nil {
 			return fmt.Errorf("creating folders: %w", err)
 		}

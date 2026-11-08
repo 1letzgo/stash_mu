@@ -51,6 +51,7 @@ type Manager struct {
 
 	DownloadStore *DownloadStore
 	SessionStore  *session.Store
+	Users         *UserService
 
 	PluginCache  *plugin.Cache
 	ScraperCache *scraper.Cache

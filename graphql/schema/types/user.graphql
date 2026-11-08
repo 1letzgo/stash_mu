@@ -1,0 +1,40 @@
+enum UserRole {
+  "May browse and play content and manage their own ratings, history, filters and UI settings"
+  VIEWER
+  "May additionally edit metadata, but not change settings, run tasks or delete files"
+  EDITOR
+  "Unrestricted access"
+  ADMIN
+}
+
+type User {
+  id: ID!
+  username: String!
+  role: UserRole!
+  created_at: Time!
+  updated_at: Time!
+}
+
+input UserCreateInput {
+  username: String!
+  password: String!
+  role: UserRole!
+}
+
+input UserUpdateInput {
+  id: ID!
+  username: String
+  "Sets a new password. Omit to leave unchanged"
+  password: String
+  role: UserRole
+}
+
+input UserChangePasswordInput {
+  current_password: String!
+  new_password: String!
+}
+
+input UserGenerateAPIKeyInput {
+  id: ID!
+  clear: Boolean
+}

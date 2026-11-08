@@ -74,8 +74,7 @@ func (s *Store) Login(w http.ResponseWriter, r *http.Request) error {
 		return &InvalidCredentialsError{Username: username}
 	}
 
-	// since we only have one user, don't leak the name
-	logger.Info("User logged in")
+	logger.Infof("User %q logged in", username)
 
 	newSession.Values[userIDKey] = username
 
@@ -159,14 +158,13 @@ func (s *Store) Authenticate(w http.ResponseWriter, r *http.Request) (userID str
 	}
 
 	if apiKey != "" {
-		// match against configured API and set userID to the
-		// configured username. In future, we'll want to
-		// get the username from the key.
-		if c.GetAPIKey() != apiKey {
+		// resolve the user owning the api key
+		username, ok := c.ResolveAPIKey(apiKey)
+		if !ok {
 			return "", ErrUnauthorized
 		}
 
-		userID = c.GetUsername()
+		userID = username
 	} else {
 		// handle session
 		userID, err = s.GetSessionUserID(w, r)

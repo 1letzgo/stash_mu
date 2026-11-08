@@ -109,6 +109,9 @@ func Initialize(cfg *config.Config, l *log.Logger) (*Manager, error) {
 		scanSubs: &subscriptionManager{},
 	}
 
+	mgr.Users = NewUserService(repo, cfg, db.Ready)
+	cfg.SetUserCredentialProvider(mgr.Users)
+
 	if !cfg.IsNewSystem() {
 		logger.Infof("using config file: %s", cfg.GetConfigFile())
 

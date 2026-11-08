@@ -428,6 +428,13 @@ var (
 )
 
 var (
+	userTableMgr = &table{
+		table:    goqu.T(userTable),
+		idColumn: goqu.T(userTable).Col(idColumn),
+	}
+)
+
+var (
 	savedFilterTableMgr = &table{
 		table:    goqu.T(savedFilterTable),
 		idColumn: goqu.T(savedFilterTable).Col(idColumn),
