@@ -695,7 +695,7 @@ var selectPerformerLastOAtSQL = utils.StrFormat(
 	"SELECT MAX(o_date) FROM ("+
 		"SELECT {o_date} FROM {performers_scenes} s "+
 		"LEFT JOIN {scenes} ON {scenes}.id = s.{scene_id} "+
-		"LEFT JOIN {scenes_o_dates} ON {scenes_o_dates}.{scene_id} = {scenes}.id "+
+		"LEFT JOIN {scenes_o_dates} ON {scenes_o_dates}.{scene_id} = {scenes}.id AND {scenes_o_dates}.user_id = "+currentUserToken+" "+
 		"WHERE s.{performer_id} = {performers}.id"+
 		")",
 	map[string]interface{}{
@@ -741,7 +741,7 @@ var selectPerformerLastPlayedAtSQL = utils.StrFormat(
 	"SELECT MAX(view_date) FROM ("+
 		"SELECT {view_date} FROM {performers_scenes} s "+
 		"LEFT JOIN {scenes} ON {scenes}.id = s.{scene_id} "+
-		"LEFT JOIN {scenes_view_dates} ON {scenes_view_dates}.{scene_id} = {scenes}.id "+
+		"LEFT JOIN {scenes_view_dates} ON {scenes_view_dates}.{scene_id} = {scenes}.id AND {scenes_view_dates}.user_id = "+currentUserToken+" "+
 		"WHERE s.{performer_id} = {performers}.id"+
 		")",
 	map[string]interface{}{

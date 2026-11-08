@@ -486,7 +486,7 @@ var selectPerformerOCountSQL = utils.StrFormat(
 		"UNION ALL "+
 		"SELECT COUNT({scenes_o_dates}.{o_date}) as o_counter from {performers_scenes} s "+
 		"LEFT JOIN {scenes} ON {scenes}.id = s.{scene_id} "+
-		"LEFT JOIN {scenes_o_dates} ON {scenes_o_dates}.{scene_id} = {scenes}.id "+
+		"LEFT JOIN {scenes_o_dates} ON {scenes_o_dates}.{scene_id} = {scenes}.id AND {scenes_o_dates}.user_id = "+currentUserToken+" "+
 		"WHERE s.{performer_id} = {performers}.id "+
 		")",
 	map[string]interface{}{
@@ -508,7 +508,7 @@ var selectPerformerPlayCountSQL = utils.StrFormat(
 	"SELECT COUNT(DISTINCT {view_date}) FROM ("+
 		"SELECT {view_date} FROM {performers_scenes} s "+
 		"LEFT JOIN {scenes} ON {scenes}.id = s.{scene_id} "+
-		"LEFT JOIN {scenes_view_dates} ON {scenes_view_dates}.{scene_id} = {scenes}.id "+
+		"LEFT JOIN {scenes_view_dates} ON {scenes_view_dates}.{scene_id} = {scenes}.id AND {scenes_view_dates}.user_id = "+currentUserToken+" "+
 		"WHERE s.{performer_id} = {performers}.id"+
 		")",
 	map[string]interface{}{

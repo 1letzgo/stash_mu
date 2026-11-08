@@ -48,6 +48,8 @@ func sqlError(err error, sql string, args ...interface{}) error {
 }
 
 func (*dbWrapperType) Get(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
+	query = bindCurrentUser(ctx, query)
+
 	tx, err := getDBReader(ctx)
 	if err != nil {
 		return sqlError(err, query, args...)
@@ -61,6 +63,8 @@ func (*dbWrapperType) Get(ctx context.Context, dest interface{}, query string, a
 }
 
 func (*dbWrapperType) Select(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
+	query = bindCurrentUser(ctx, query)
+
 	tx, err := getDBReader(ctx)
 	if err != nil {
 		return sqlError(err, query, args...)
@@ -74,6 +78,8 @@ func (*dbWrapperType) Select(ctx context.Context, dest interface{}, query string
 }
 
 func (*dbWrapperType) Queryx(ctx context.Context, query string, args ...interface{}) (*sqlx.Rows, error) {
+	query = bindCurrentUser(ctx, query)
+
 	tx, err := getDBReader(ctx)
 	if err != nil {
 		return nil, sqlError(err, query, args...)
@@ -91,6 +97,8 @@ func (*dbWrapperType) QueryxContext(ctx context.Context, query string, args ...i
 }
 
 func (*dbWrapperType) NamedExec(ctx context.Context, query string, arg interface{}) (sql.Result, error) {
+	query = bindCurrentUser(ctx, query)
+
 	tx, err := getTx(ctx)
 	if err != nil {
 		return nil, sqlError(err, query, arg)
@@ -104,6 +112,8 @@ func (*dbWrapperType) NamedExec(ctx context.Context, query string, arg interface
 }
 
 func (*dbWrapperType) Exec(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	query = bindCurrentUser(ctx, query)
+
 	tx, err := getTx(ctx)
 	if err != nil {
 		return nil, sqlError(err, query, args...)
@@ -118,6 +128,8 @@ func (*dbWrapperType) Exec(ctx context.Context, query string, args ...interface{
 
 // Prepare creates a prepared statement.
 func (*dbWrapperType) Prepare(ctx context.Context, query string, args ...interface{}) (*stmt, error) {
+	query = bindCurrentUser(ctx, query)
+
 	tx, err := getTx(ctx)
 	if err != nil {
 		return nil, sqlError(err, query, args...)

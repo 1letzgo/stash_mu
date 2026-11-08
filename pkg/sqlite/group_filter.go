@@ -246,7 +246,7 @@ var selectGroupOCountSQL = utils.StrFormat(
 		"FROM ("+
 		"SELECT COUNT({scenes_o_dates}.{o_date}) as o_counter from {groups_scenes} s "+
 		"LEFT JOIN {scenes} ON {scenes}.id = s.{scene_id} "+
-		"LEFT JOIN {scenes_o_dates} ON {scenes_o_dates}.{scene_id} = {scenes}.id "+
+		"LEFT JOIN {scenes_o_dates} ON {scenes_o_dates}.{scene_id} = {scenes}.id AND {scenes_o_dates}.user_id = "+currentUserToken+" "+
 		"WHERE s.{group_id} = {group}.id "+
 		")",
 	map[string]interface{}{

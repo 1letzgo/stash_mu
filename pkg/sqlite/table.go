@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/stashapp/stash/pkg/user"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
@@ -878,6 +879,16 @@ type viewHistoryTable struct {
 	dateColumn exp.IdentifierExpression
 }
 
+// userCol returns the user id column of the history table.
+func (t *viewHistoryTable) userCol() exp.IdentifierExpression {
+	return t.table.table.Col(userIDColumn)
+}
+
+// forUser returns the condition restricting rows to the current user.
+func (t *viewHistoryTable) forUser(ctx context.Context) exp.Expression {
+	return t.userCol().Eq(user.CurrentID(ctx))
+}
+
 func (t *viewHistoryTable) getDates(ctx context.Context, id int) ([]time.Time, error) {
 	table := t.table.table
 
@@ -885,6 +896,7 @@ func (t *viewHistoryTable) getDates(ctx context.Context, id int) ([]time.Time, e
 		t.dateColumn,
 	).From(table).Where(
 		t.idColumn.Eq(id),
+		t.forUser(ctx),
 	).Order(t.dateColumn.Desc())
 
 	const single = false
@@ -911,6 +923,7 @@ func (t *viewHistoryTable) getManyDates(ctx context.Context, ids []int) ([][]tim
 		t.dateColumn,
 	).From(table).Where(
 		t.idColumn.In(ids),
+		t.forUser(ctx),
 	).Order(t.dateColumn.Desc())
 
 	ret := make([][]time.Time, len(ids))
@@ -938,6 +951,7 @@ func (t *viewHistoryTable) getLastDate(ctx context.Context, id int) (*time.Time,
 	table := t.table.table
 	q := dialect.Select(t.dateColumn).From(table).Where(
 		t.idColumn.Eq(id),
+		t.forUser(ctx),
 	).Order(t.dateColumn.Desc()).Limit(1)
 
 	var date NullTimestamp
@@ -956,6 +970,7 @@ func (t *viewHistoryTable) getManyLastDate(ctx context.Context, ids []int) ([]*t
 		goqu.MAX(t.dateColumn),
 	).From(table).Where(
 		t.idColumn.In(ids),
+		t.forUser(ctx),
 	).GroupBy(t.idColumn)
 
 	ret := make([]*time.Time, len(ids))
@@ -989,7 +1004,7 @@ func (t *viewHistoryTable) getManyLastDate(ctx context.Context, ids []int) ([]*t
 
 func (t *viewHistoryTable) getCount(ctx context.Context, id int) (int, error) {
 	table := t.table.table
-	q := dialect.Select(goqu.COUNT("*")).From(table).Where(t.idColumn.Eq(id))
+	q := dialect.Select(goqu.COUNT("*")).From(table).Where(t.idColumn.Eq(id), t.forUser(ctx))
 
 	const single = true
 	var ret int
@@ -1013,6 +1028,7 @@ func (t *viewHistoryTable) getManyCount(ctx context.Context, ids []int) ([]int, 
 		goqu.COUNT(t.dateColumn),
 	).From(table).Where(
 		t.idColumn.In(ids),
+		t.forUser(ctx),
 	).GroupBy(t.idColumn)
 
 	ret := make([]int, len(ids))
@@ -1038,7 +1054,7 @@ func (t *viewHistoryTable) getManyCount(ctx context.Context, ids []int) ([]int, 
 
 func (t *viewHistoryTable) getAllCount(ctx context.Context) (int, error) {
 	table := t.table.table
-	q := dialect.Select(goqu.COUNT("*")).From(table)
+	q := dialect.Select(goqu.COUNT("*")).From(table).Where(t.forUser(ctx))
 
 	const single = true
 	var ret int
@@ -1056,7 +1072,7 @@ func (t *viewHistoryTable) getAllCount(ctx context.Context) (int, error) {
 
 func (t *viewHistoryTable) getUniqueCount(ctx context.Context) (int, error) {
 	table := t.table.table
-	q := dialect.Select(goqu.COUNT(goqu.DISTINCT(t.idColumn))).From(table)
+	q := dialect.Select(goqu.COUNT(goqu.DISTINCT(t.idColumn))).From(table).Where(t.forUser(ctx))
 
 	const single = true
 	var ret int
@@ -1080,9 +1096,9 @@ func (t *viewHistoryTable) addDates(ctx context.Context, id int, dates []time.Ti
 	}
 
 	for _, d := range dates {
-		q := dialect.Insert(table).Cols(t.idColumn.GetCol(), t.dateColumn.GetCol()).Vals(
+		q := dialect.Insert(table).Cols(t.idColumn.GetCol(), t.dateColumn.GetCol(), t.userCol().GetCol()).Vals(
 			// convert all dates to UTC
-			goqu.Vals{id, UTCTimestamp{Timestamp{d}}},
+			goqu.Vals{id, UTCTimestamp{Timestamp{d}}, user.CurrentID(ctx)},
 		)
 
 		if _, err := exec(ctx, q); err != nil {
@@ -1108,10 +1124,12 @@ func (t *viewHistoryTable) deleteDates(ctx context.Context, id int, dates []time
 			// delete the most recent
 			subquery = dialect.Select("rowid").From(table).Where(
 				t.idColumn.Eq(id),
+				t.forUser(ctx),
 			).Order(t.dateColumn.Desc()).Limit(1)
 		} else {
 			subquery = dialect.Select("rowid").From(table).Where(
 				t.idColumn.Eq(id),
+				t.forUser(ctx),
 				t.dateColumn.Eq(UTCTimestamp{Timestamp{date}}),
 			).Limit(1)
 		}
@@ -1128,7 +1146,7 @@ func (t *viewHistoryTable) deleteDates(ctx context.Context, id int, dates []time
 
 func (t *viewHistoryTable) deleteAllDates(ctx context.Context, id int) (int, error) {
 	table := t.table.table
-	q := dialect.Delete(table).Where(t.idColumn.Eq(id))
+	q := dialect.Delete(table).Where(t.idColumn.Eq(id), t.forUser(ctx))
 
 	if _, err := exec(ctx, q); err != nil {
 		return 0, fmt.Errorf("resetting dates for id %v: %w", id, err)
@@ -1151,6 +1169,7 @@ func exec(ctx context.Context, stmt sqler) (sql.Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("generating sql: %w", err)
 	}
+	sql = bindCurrentUser(ctx, sql)
 
 	logger.Tracef("SQL: %s [%v]", sql, args)
 	ret, err := tx.ExecContext(ctx, sql, args...)

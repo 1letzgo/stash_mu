@@ -102,3 +102,75 @@ func TestUserCreateUpdateDestroy(t *testing.T) {
 		return nil
 	})
 }
+
+func TestUserScopedSceneHistory(t *testing.T) {
+	withRollbackTxn(func(ctx context.Context) error {
+		qb := db.Scene
+		sceneID := sceneIDs[sceneIdxWithGallery]
+		viewer := viewerCtx(ctx)
+
+		adminViews, err := qb.CountViews(ctx, sceneID)
+		assert.NoError(t, err)
+		adminO, err := qb.GetOCount(ctx, sceneID)
+		assert.NoError(t, err)
+		adminScene, err := qb.Find(ctx, sceneID)
+		assert.NoError(t, err)
+
+		// viewer records activity
+		_, err = qb.AddViews(viewer, sceneID, nil)
+		assert.NoError(t, err)
+		_, err = qb.AddO(viewer, sceneID, []time.Time{time.Now(), time.Now()})
+		assert.NoError(t, err)
+		resume := 42.5
+		duration := 10.0
+		_, err = qb.SaveActivity(viewer, sceneID, &resume, &duration)
+		assert.NoError(t, err)
+		_, err = qb.SaveActivity(viewer, sceneID, nil, &duration)
+		assert.NoError(t, err)
+
+		// viewer sees their own values
+		views, err := qb.CountViews(viewer, sceneID)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, views)
+		o, err := qb.GetOCount(viewer, sceneID)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, o)
+		s, err := qb.Find(viewer, sceneID)
+		assert.NoError(t, err)
+		assert.Equal(t, resume, s.ResumeTime)
+		assert.Equal(t, 20.0, s.PlayDuration)
+
+		// admin (system user) is unaffected
+		views, err = qb.CountViews(ctx, sceneID)
+		assert.NoError(t, err)
+		assert.Equal(t, adminViews, views)
+		o, err = qb.GetOCount(ctx, sceneID)
+		assert.NoError(t, err)
+		assert.Equal(t, adminO, o)
+		s, err = qb.Find(ctx, sceneID)
+		assert.NoError(t, err)
+		assert.Equal(t, adminScene.ResumeTime, s.ResumeTime)
+		assert.Equal(t, adminScene.PlayDuration, s.PlayDuration)
+
+		// filtering by o_counter is per-user
+		oCount := 2
+		filter := &models.SceneFilterType{
+			OCounter: &models.IntCriterionInput{Value: oCount, Modifier: models.CriterionModifierEquals},
+		}
+		ids, err := qb.Query(viewer, models.SceneQueryOptions{SceneFilter: filter})
+		assert.NoError(t, err)
+		assert.Contains(t, ids.IDs, sceneID)
+		ids, err = qb.Query(ctx, models.SceneQueryOptions{SceneFilter: filter})
+		assert.NoError(t, err)
+		if adminO != oCount {
+			assert.NotContains(t, ids.IDs, sceneID)
+		}
+
+		// deleting the user removes their data
+		assert.NoError(t, db.User.Destroy(ctx, userIDs[userIdxViewer]))
+		views, err = qb.CountViews(viewer, sceneID)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, views)
+		return nil
+	})
+}

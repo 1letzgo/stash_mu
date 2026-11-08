@@ -76,10 +76,25 @@ func (s *UserService) snapshot() []models.User {
 
 	var users []*models.User
 	ctx := context.Background()
-	if err := s.Repository.WithReadTxn(ctx, func(ctx context.Context) error {
+	if err := s.Repository.WithTxn(ctx, func(ctx context.Context) error {
 		var err error
 		users, err = s.Repository.User.All(ctx)
-		return err
+		if err != nil {
+			return err
+		}
+
+		if len(users) == 0 {
+			// credentials may have been set in the config file (by setup, the
+			// legacy settings or manually) - create the primary admin user
+			primary, err := s.createPrimaryFromConfig(ctx)
+			if err != nil {
+				return err
+			}
+			if primary != nil {
+				users = append(users, primary)
+			}
+		}
+		return nil
 	}); err != nil {
 		logger.Errorf("loading users: %v", err)
 		return nil
@@ -456,28 +471,42 @@ func (s *UserService) GenerateAPIKey(ctx context.Context, id int, clear bool) (s
 	return ret.APIKey, nil
 }
 
-// EnsurePrimaryFromConfig creates the primary admin user from the legacy
-// config credentials if no users exist yet. This happens when credentials
-// are first set through the legacy general settings.
-func (s *UserService) EnsurePrimaryFromConfig(ctx context.Context) error {
-	if s.HasUsers() || !s.Config.HasCredentials() {
-		return nil
+// createPrimaryFromConfig creates the primary admin user from the legacy
+// config credentials, if set. Must be called in a write transaction when no
+// users exist.
+func (s *UserService) createPrimaryFromConfig(ctx context.Context) (*models.User, error) {
+	if s.Config == nil {
+		return nil, nil
 	}
 
-	username, hash := s.Config.GetCredentials()
-	return s.withTxn(ctx, func(ctx context.Context, qb models.UserReaderWriter) error {
-		n, err := qb.Count(ctx)
-		if err != nil || n > 0 {
-			return err
-		}
-		now := time.Now()
-		return qb.Create(ctx, &models.User{
-			Username:     username,
-			PasswordHash: hash,
-			Role:         user.RoleAdmin,
-			APIKey:       s.Config.GetAPIKey(),
-			CreatedAt:    now,
-			UpdatedAt:    now,
-		})
-	})
+	username := s.Config.GetUsername()
+	hash := s.Config.GetPasswordHash()
+	if username == "" || hash == "" {
+		return nil, nil
+	}
+
+	now := time.Now()
+	u := &models.User{
+		Username:     username,
+		PasswordHash: hash,
+		Role:         user.RoleAdmin,
+		APIKey:       s.Config.GetAPIKey(),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := s.Repository.User.Create(ctx, u); err != nil {
+		return nil, fmt.Errorf("creating primary user: %w", err)
+	}
+
+	logger.Infof("Created primary admin user %q from configured credentials", username)
+	return u, nil
+}
+
+// EnsurePrimaryFromConfig creates the primary admin user from the config
+// credentials if no users exist yet, for example after credentials were set
+// for the first time through the legacy general settings.
+func (s *UserService) EnsurePrimaryFromConfig(ctx context.Context) error {
+	s.Invalidate()
+	s.snapshot()
+	return nil
 }

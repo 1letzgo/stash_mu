@@ -78,8 +78,16 @@ func (s *Service) Merge(ctx context.Context, sourceIDs []int, destinationID int,
 		return fmt.Errorf("updating scene: %w", err)
 	}
 
+	// if supported, move the history of all users rather than only the
+	// history of the current user
+	mover, canMove := s.Repository.(historyMover)
+
 	// merge play history
-	if options.IncludePlayHistory {
+	if options.IncludePlayHistory && canMove {
+		if err := mover.MoveViewHistory(ctx, sourceIDs, destinationID); err != nil {
+			return fmt.Errorf("moving view history to scene %d: %w", destinationID, err)
+		}
+	} else if options.IncludePlayHistory {
 		var allDates []time.Time
 		for _, src := range sources {
 			thisDates, err := s.Repository.GetViewDates(ctx, src.ID)
@@ -98,7 +106,11 @@ func (s *Service) Merge(ctx context.Context, sourceIDs []int, destinationID int,
 	}
 
 	// merge o history
-	if options.IncludeOHistory {
+	if options.IncludeOHistory && canMove {
+		if err := mover.MoveOHistory(ctx, sourceIDs, destinationID); err != nil {
+			return fmt.Errorf("moving o history to scene %d: %w", destinationID, err)
+		}
+	} else if options.IncludeOHistory {
 		var allDates []time.Time
 		for _, src := range sources {
 			thisDates, err := s.Repository.GetODates(ctx, src.ID)
@@ -194,4 +206,11 @@ func (s *Service) mergeSceneMarkers(ctx context.Context, dest *models.Scene, src
 	}
 
 	return nil
+}
+
+// historyMover is implemented by repositories that can move the history of
+// all users between scenes.
+type historyMover interface {
+	MoveViewHistory(ctx context.Context, sourceIDs []int, destinationID int) error
+	MoveOHistory(ctx context.Context, sourceIDs []int, destinationID int) error
 }

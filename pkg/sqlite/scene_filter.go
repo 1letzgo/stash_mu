@@ -162,13 +162,13 @@ func (qb *sceneFilterHandler) criterionHandler() criterionHandler {
 
 		qb.captionCriterionHandler(sceneFilter.Captions),
 
-		floatIntCriterionHandler(sceneFilter.ResumeTime, "scenes.resume_time", nil),
-		floatIntCriterionHandler(sceneFilter.PlayDuration, "scenes.play_duration", nil),
+		floatIntCriterionHandler(sceneFilter.ResumeTime, sceneResumeTimeExpr, nil),
+		floatIntCriterionHandler(sceneFilter.PlayDuration, scenePlayDurationExpr, nil),
 		qb.playCountCriterionHandler(sceneFilter.PlayCount),
 		criterionHandlerFunc(func(ctx context.Context, f *filterBuilder) {
 			if sceneFilter.LastPlayedAt != nil {
 				f.addLeftJoin(
-					fmt.Sprintf("(SELECT %s, MAX(%s) as last_played_at FROM %s GROUP BY %s)", sceneIDColumn, sceneViewDateColumn, scenesViewDatesTable, sceneIDColumn),
+					fmt.Sprintf("(SELECT %s, MAX(%s) as last_played_at FROM %s GROUP BY %s)", sceneIDColumn, sceneViewDateColumn, userScoped(scenesViewDatesTable), sceneIDColumn),
 					"scene_last_view",
 					fmt.Sprintf("scene_last_view.%s = scenes.id", sceneIDColumn),
 				)
@@ -293,7 +293,7 @@ func (qb *sceneFilterHandler) addVideoFilesTable(f *filterBuilder, joinType join
 func (qb *sceneFilterHandler) playCountCriterionHandler(count *models.IntCriterionInput) criterionHandlerFunc {
 	h := countCriterionHandlerBuilder{
 		primaryTable: sceneTable,
-		joinTable:    scenesViewDatesTable,
+		joinTable:    userScoped(scenesViewDatesTable),
 		primaryFK:    sceneIDColumn,
 	}
 
@@ -303,7 +303,7 @@ func (qb *sceneFilterHandler) playCountCriterionHandler(count *models.IntCriteri
 func (qb *sceneFilterHandler) oCountCriterionHandler(count *models.IntCriterionInput) criterionHandlerFunc {
 	h := countCriterionHandlerBuilder{
 		primaryTable: sceneTable,
-		joinTable:    scenesODatesTable,
+		joinTable:    userScoped(scenesODatesTable),
 		primaryFK:    sceneIDColumn,
 	}
 

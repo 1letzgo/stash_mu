@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/stashapp/stash/pkg/user"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -38,6 +39,8 @@ const (
 	scenesODatesTable     = "scenes_o_dates"
 	sceneODateColumn      = "o_date"
 
+	scenesUserActivityTable = "scenes_user_activity"
+
 	sceneCoverBlobColumn = "cover_blob"
 )
 
@@ -59,13 +62,14 @@ type sceneRow struct {
 	ProductionDate          NullDate    `db:"production_date"`
 	ProductionDatePrecision null.Int    `db:"production_date_precision"`
 	// expressed as 1-100
-	Rating       null.Int  `db:"rating"`
-	Organized    bool      `db:"organized"`
-	StudioID     null.Int  `db:"studio_id,omitempty"`
-	CreatedAt    Timestamp `db:"created_at"`
-	UpdatedAt    Timestamp `db:"updated_at"`
-	ResumeTime   float64   `db:"resume_time"`
-	PlayDuration float64   `db:"play_duration"`
+	Rating    null.Int  `db:"rating"`
+	Organized bool      `db:"organized"`
+	StudioID  null.Int  `db:"studio_id,omitempty"`
+	CreatedAt Timestamp `db:"created_at"`
+	UpdatedAt Timestamp `db:"updated_at"`
+	// per-user values, read from scenes_user_activity for the current user
+	ResumeTime   float64 `db:"resume_time" goqu:"skipinsert,skipupdate"`
+	PlayDuration float64 `db:"play_duration" goqu:"skipinsert,skipupdate"`
 
 	// not used in resolutions or updates
 	CoverBlob zero.String `db:"cover_blob"`
@@ -146,8 +150,7 @@ func (r *sceneRowRecord) fromPartial(o models.ScenePartial) {
 	r.setNullInt("studio_id", o.StudioID)
 	r.setTimestamp("created_at", o.CreatedAt)
 	r.setTimestamp("updated_at", o.UpdatedAt)
-	r.setFloat64("resume_time", o.ResumeTime)
-	r.setFloat64("play_duration", o.PlayDuration)
+	// resume_time and play_duration are per-user - see UpdatePartial
 }
 
 type sceneRepositoryType struct {
@@ -276,6 +279,8 @@ func (qb *SceneStore) selectDataset() *goqu.SelectDataset {
 		),
 	).Select(
 		qb.table().All(),
+		goqu.L(sceneResumeTimeExpr).As("resume_time"),
+		goqu.L(scenePlayDurationExpr).As("play_duration"),
 		scenesFilesJoinTable.Col(fileIDColumn).As("primary_file_id"),
 		folders.Col("path").As("primary_file_folder_path"),
 		files.Col("basename").As("primary_file_basename"),
@@ -290,6 +295,10 @@ func (qb *SceneStore) Create(ctx context.Context, newObject *models.Scene, fileI
 
 	id, err := qb.tableMgr.insertID(ctx, r)
 	if err != nil {
+		return err
+	}
+
+	if err := qb.replaceActivity(ctx, id, newObject.ResumeTime, newObject.PlayDuration); err != nil {
 		return err
 	}
 
@@ -361,6 +370,17 @@ func (qb *SceneStore) UpdatePartial(ctx context.Context, id int, partial models.
 		}
 	}
 
+	if partial.ResumeTime.Set {
+		if err := qb.upsertActivity(ctx, id, "resume_time", partial.ResumeTime.Value, false); err != nil {
+			return nil, err
+		}
+	}
+	if partial.PlayDuration.Set {
+		if err := qb.upsertActivity(ctx, id, "play_duration", partial.PlayDuration.Value, false); err != nil {
+			return nil, err
+		}
+	}
+
 	if partial.URLs != nil {
 		if err := scenesURLsTableMgr.modifyJoins(ctx, id, partial.URLs.Values, partial.URLs.Mode); err != nil {
 			return nil, err
@@ -405,6 +425,10 @@ func (qb *SceneStore) Update(ctx context.Context, updatedObject *models.Scene) e
 	r.fromScene(*updatedObject)
 
 	if err := qb.tableMgr.updateByID(ctx, updatedObject.ID, r); err != nil {
+		return err
+	}
+
+	if err := qb.replaceActivity(ctx, updatedObject.ID, updatedObject.ResumeTime, updatedObject.PlayDuration); err != nil {
 		return err
 	}
 
@@ -802,7 +826,7 @@ func (qb *SceneStore) OCountByPerformerID(ctx context.Context, performerID int) 
 
 	q := dialect.Select(goqu.COUNT("*")).From(table).InnerJoin(
 		oHistoryTable,
-		goqu.On(table.Col(idColumn).Eq(oHistoryTable.Col(sceneIDColumn))),
+		goqu.On(table.Col(idColumn).Eq(oHistoryTable.Col(sceneIDColumn)), goqu.L(userCondition(scenesODatesTable))),
 	).InnerJoin(
 		joinTable,
 		goqu.On(
@@ -825,7 +849,7 @@ func (qb *SceneStore) OCountByGroupID(ctx context.Context, groupID int) (int, er
 
 	q := dialect.Select(goqu.COUNT("*")).From(table).InnerJoin(
 		oHistoryTable,
-		goqu.On(table.Col(idColumn).Eq(oHistoryTable.Col(sceneIDColumn))),
+		goqu.On(table.Col(idColumn).Eq(oHistoryTable.Col(sceneIDColumn)), goqu.L(userCondition(scenesODatesTable))),
 	).InnerJoin(
 		joinTable,
 		goqu.On(
@@ -853,7 +877,7 @@ func (qb *SceneStore) OCountByStudioID(ctx context.Context, studioID int, depth 
 
 	q := dialect.Select(goqu.COUNT("*")).From(table).InnerJoin(
 		oHistoryTable,
-		goqu.On(table.Col(idColumn).Eq(oHistoryTable.Col(sceneIDColumn))),
+		goqu.On(table.Col(idColumn).Eq(oHistoryTable.Col(sceneIDColumn)), goqu.L(userCondition(scenesODatesTable))),
 	).Where(table.Col(studioIDColumn).Eq(studioID))
 
 	if err := querySimple(ctx, q, &ret); err != nil {
@@ -873,7 +897,7 @@ func (qb *SceneStore) oCountByStudioIDRecursive(ctx context.Context, studioID in
 		WHERE ss.level < ? OR ? < 0
 	)
 	SELECT COUNT(*) FROM scenes
-	INNER JOIN scenes_o_dates ON scenes.id = scenes_o_dates.scene_id
+	INNER JOIN scenes_o_dates ON scenes.id = scenes_o_dates.scene_id AND scenes_o_dates.user_id = ` + currentUserToken + `
 	WHERE scenes.studio_id IN (SELECT id FROM sub_studios)`
 
 	rows, err := dbWrapper.QueryxContext(ctx, q, studioID, depth, depth)
@@ -955,9 +979,9 @@ func (qb *SceneStore) Duration(ctx context.Context) (float64, error) {
 }
 
 func (qb *SceneStore) PlayDuration(ctx context.Context) (float64, error) {
-	table := qb.table()
+	table := goqu.T(scenesUserActivityTable)
 
-	q := dialect.Select(goqu.COALESCE(goqu.SUM("play_duration"), 0)).From(table)
+	q := dialect.Select(goqu.COALESCE(goqu.SUM("play_duration"), 0)).From(table).Where(goqu.L(userCondition(scenesUserActivityTable)))
 
 	var ret float64
 	if err := querySimple(ctx, q, &ret); err != nil {
@@ -1316,13 +1340,17 @@ func (qb *SceneStore) setSceneSort(query *queryBuilder, findFilter *models.FindF
 		addFolderTable()
 		query.sortAndPagination += " ORDER BY COALESCE(scenes.title, files.basename) COLLATE NATURAL_CI " + direction + ", folders.path COLLATE NATURAL_CI " + direction
 	case "play_count":
-		query.sortAndPagination += getCountSort(sceneTable, scenesViewDatesTable, sceneIDColumn, direction)
+		query.sortAndPagination += getCountSort(sceneTable, userScoped(scenesViewDatesTable), sceneIDColumn, direction)
 	case "last_played_at":
-		query.sortAndPagination += fmt.Sprintf(" ORDER BY (SELECT MAX(view_date) FROM %s AS sort WHERE sort.%s = %s.id) %s", scenesViewDatesTable, sceneIDColumn, sceneTable, getSortDirection(direction))
+		query.sortAndPagination += fmt.Sprintf(" ORDER BY (SELECT MAX(view_date) FROM %s AS sort WHERE sort.%s = %s.id) %s", userScoped(scenesViewDatesTable), sceneIDColumn, sceneTable, getSortDirection(direction))
 	case "last_o_at":
-		query.sortAndPagination += fmt.Sprintf(" ORDER BY (SELECT MAX(o_date) FROM %s AS sort WHERE sort.%s = %s.id) %s", scenesODatesTable, sceneIDColumn, sceneTable, getSortDirection(direction))
+		query.sortAndPagination += fmt.Sprintf(" ORDER BY (SELECT MAX(o_date) FROM %s AS sort WHERE sort.%s = %s.id) %s", userScoped(scenesODatesTable), sceneIDColumn, sceneTable, getSortDirection(direction))
 	case "o_counter":
-		query.sortAndPagination += getCountSort(sceneTable, scenesODatesTable, sceneIDColumn, direction)
+		query.sortAndPagination += getCountSort(sceneTable, userScoped(scenesODatesTable), sceneIDColumn, direction)
+	case "resume_time":
+		query.sortAndPagination += " ORDER BY " + sceneResumeTimeExpr + " " + getSortDirection(direction)
+	case "play_duration":
+		query.sortAndPagination += " ORDER BY " + scenePlayDurationExpr + " " + getSortDirection(direction)
 	case "performer_age":
 		// Looking at the youngest performer by default
 		aggregation := "MIN"
@@ -1365,18 +1393,14 @@ func (qb *SceneStore) SaveActivity(ctx context.Context, id int, resumeTime *floa
 		return false, err
 	}
 
-	record := goqu.Record{}
-
 	if resumeTime != nil {
-		record["resume_time"] = resumeTime
+		if err := qb.upsertActivity(ctx, id, "resume_time", *resumeTime, false); err != nil {
+			return false, err
+		}
 	}
 
 	if playDuration != nil {
-		record["play_duration"] = goqu.L("play_duration + ?", playDuration)
-	}
-
-	if len(record) > 0 {
-		if err := qb.tableMgr.updateByID(ctx, id, record); err != nil {
+		if err := qb.upsertActivity(ctx, id, "play_duration", *playDuration, true); err != nil {
 			return false, err
 		}
 	}
@@ -1389,18 +1413,14 @@ func (qb *SceneStore) ResetActivity(ctx context.Context, id int, resetResume boo
 		return false, err
 	}
 
-	record := goqu.Record{}
-
 	if resetResume {
-		record["resume_time"] = 0.0
+		if err := qb.upsertActivity(ctx, id, "resume_time", 0, false); err != nil {
+			return false, err
+		}
 	}
 
 	if resetDuration {
-		record["play_duration"] = 0.0
-	}
-
-	if len(record) > 0 {
-		if err := qb.tableMgr.updateByID(ctx, id, record); err != nil {
+		if err := qb.upsertActivity(ctx, id, "play_duration", 0, false); err != nil {
 			return false, err
 		}
 	}
@@ -1618,4 +1638,77 @@ func getFirstPath(scenes []*models.Scene) string {
 		}
 	}
 	return firstPath
+}
+
+// sceneResumeTimeExpr and scenePlayDurationExpr select the per-user activity
+// values of the current user for the scene in the outer query.
+var (
+	sceneResumeTimeExpr   = sceneActivityExpr("resume_time")
+	scenePlayDurationExpr = sceneActivityExpr("play_duration")
+)
+
+func sceneActivityExpr(column string) string {
+	return fmt.Sprintf("COALESCE((SELECT sua.%[1]s FROM %[2]s sua WHERE sua.scene_id = %[3]s.id AND sua.%[4]s = %[5]s), 0)",
+		column, scenesUserActivityTable, sceneTable, userIDColumn, currentUserToken)
+}
+
+// upsertActivity sets (or increments, if add is true) an activity column of
+// the current user for the scene.
+func (qb *SceneStore) upsertActivity(ctx context.Context, id int, column string, value float64, add bool) error {
+	update := fmt.Sprintf("%[1]s = excluded.%[1]s", column)
+	if add {
+		update = fmt.Sprintf("%[1]s = %[2]s.%[1]s + excluded.%[1]s", column, scenesUserActivityTable)
+	}
+
+	stmt := fmt.Sprintf(
+		"INSERT INTO %[1]s (user_id, scene_id, %[2]s) VALUES (?, ?, ?) ON CONFLICT (user_id, scene_id) DO UPDATE SET %[3]s",
+		scenesUserActivityTable, column, update,
+	)
+
+	if _, err := dbWrapper.Exec(ctx, stmt, user.CurrentID(ctx), id, value); err != nil {
+		return fmt.Errorf("updating scene activity: %w", err)
+	}
+	return nil
+}
+
+// replaceActivity sets both activity values of the current user for the
+// scene, removing the row if both are zero.
+func (qb *SceneStore) replaceActivity(ctx context.Context, id int, resumeTime float64, playDuration float64) error {
+	if resumeTime == 0 && playDuration == 0 {
+		stmt := fmt.Sprintf("DELETE FROM %s WHERE user_id = ? AND scene_id = ?", scenesUserActivityTable)
+		if _, err := dbWrapper.Exec(ctx, stmt, user.CurrentID(ctx), id); err != nil {
+			return fmt.Errorf("resetting scene activity: %w", err)
+		}
+		return nil
+	}
+
+	stmt := fmt.Sprintf(
+		"INSERT INTO %s (user_id, scene_id, resume_time, play_duration) VALUES (?, ?, ?, ?) ON CONFLICT (user_id, scene_id) DO UPDATE SET resume_time = excluded.resume_time, play_duration = excluded.play_duration",
+		scenesUserActivityTable,
+	)
+	if _, err := dbWrapper.Exec(ctx, stmt, user.CurrentID(ctx), id, resumeTime, playDuration); err != nil {
+		return fmt.Errorf("updating scene activity: %w", err)
+	}
+	return nil
+}
+
+// MoveViewHistory moves the play history of all users from the source scenes
+// to the destination scene.
+func (qb *SceneStore) MoveViewHistory(ctx context.Context, sourceIDs []int, destinationID int) error {
+	return qb.moveHistory(ctx, scenesViewDatesTable, sourceIDs, destinationID)
+}
+
+// MoveOHistory moves the o history of all users from the source scenes to
+// the destination scene.
+func (qb *SceneStore) MoveOHistory(ctx context.Context, sourceIDs []int, destinationID int) error {
+	return qb.moveHistory(ctx, scenesODatesTable, sourceIDs, destinationID)
+}
+
+func (qb *SceneStore) moveHistory(ctx context.Context, table string, sourceIDs []int, destinationID int) error {
+	t := goqu.T(table)
+	q := dialect.Update(t).Prepared(true).Set(goqu.Record{sceneIDColumn: destinationID}).Where(t.Col(sceneIDColumn).In(sourceIDs))
+	if _, err := exec(ctx, q); err != nil {
+		return fmt.Errorf("moving history in %s: %w", table, err)
+	}
+	return nil
 }
