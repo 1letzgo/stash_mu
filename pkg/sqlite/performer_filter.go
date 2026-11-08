@@ -182,7 +182,7 @@ func (qb *performerFilterHandler) criterionHandler() criterionHandler {
 		&dateCriterionHandler{filter.CareerEnd, tableName + ".career_end", nil},
 		stringCriterionHandler(filter.Tattoos, tableName+".tattoos"),
 		stringCriterionHandler(filter.Piercings, tableName+".piercings"),
-		intCriterionHandler(filter.Rating100, tableName+".rating", nil),
+		intCriterionHandler(filter.Rating100, getColumn(tableName, ratingColumn), nil),
 		stringCriterionHandler(filter.HairColor, tableName+".hair_color"),
 		qb.urlsCriterionHandler(filter.URL),
 		intCriterionHandler(filter.Weight, tableName+".weight", nil),
@@ -349,6 +349,8 @@ func (qb *performerFilterHandler) performerIsMissingCriterionHandler(isMissing *
 			case "tags":
 				f.addLeftJoin(performersTagsTable, "tags_join", "tags_join.performer_id = performers.id")
 				f.addWhere("tags_join.performer_id IS NULL")
+			case "rating":
+				f.addWhere(ratingIsMissingClause(performerTable))
 			default:
 				if err := validateIsMissing(*isMissing, []string{
 					"disambiguation", "gender", "birthdate", "death_date",
@@ -480,7 +482,7 @@ func (qb *performerFilterHandler) galleryCountCriterionHandler(count *models.Int
 var selectPerformerOCountSQL = utils.StrFormat(
 	"SELECT SUM(o_counter) "+
 		"FROM ("+
-		"SELECT SUM(o_counter) as o_counter from {performers_images} s "+
+		"SELECT SUM("+imageOCounterExpr+") as o_counter from {performers_images} s "+
 		"LEFT JOIN {images} ON {images}.id = s.{images_id} "+
 		"WHERE s.{performer_id} = {performers}.id "+
 		"UNION ALL "+

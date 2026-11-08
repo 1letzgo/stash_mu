@@ -174,3 +174,69 @@ func TestUserScopedSceneHistory(t *testing.T) {
 		return nil
 	})
 }
+
+func TestUserScopedRatings(t *testing.T) {
+	withRollbackTxn(func(ctx context.Context) error {
+		viewer := viewerCtx(ctx)
+		sceneID := sceneIDs[sceneIdxWithGallery]
+		imageID := imageIDs[imageIdxWithGallery]
+
+		adminScene, err := db.Scene.Find(ctx, sceneID)
+		assert.NoError(t, err)
+		adminImage, err := db.Image.Find(ctx, imageID)
+		assert.NoError(t, err)
+
+		rating := 77
+		_, err = db.Scene.UpdatePartial(viewer, sceneID, models.ScenePartial{Rating: models.NewOptionalInt(rating)})
+		assert.NoError(t, err)
+		_, err = db.Image.IncrementOCounter(viewer, imageID)
+		assert.NoError(t, err)
+		_, err = db.Image.IncrementOCounter(viewer, imageID)
+		assert.NoError(t, err)
+		n, err := db.Image.DecrementOCounter(viewer, imageID)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, n)
+
+		s, err := db.Scene.Find(viewer, sceneID)
+		assert.NoError(t, err)
+		if assert.NotNil(t, s.Rating) {
+			assert.Equal(t, rating, *s.Rating)
+		}
+		i, err := db.Image.Find(viewer, imageID)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, i.OCounter)
+
+		// admin unaffected
+		s, err = db.Scene.Find(ctx, sceneID)
+		assert.NoError(t, err)
+		assert.Equal(t, adminScene.Rating, s.Rating)
+		i, err = db.Image.Find(ctx, imageID)
+		assert.NoError(t, err)
+		assert.Equal(t, adminImage.OCounter, i.OCounter)
+
+		// filter and sort by rating use the viewer's rating
+		filter := &models.SceneFilterType{
+			Rating100: &models.IntCriterionInput{Value: rating, Modifier: models.CriterionModifierEquals},
+		}
+		res, err := db.Scene.Query(viewer, models.SceneQueryOptions{SceneFilter: filter})
+		assert.NoError(t, err)
+		assert.Equal(t, []int{sceneID}, res.IDs)
+
+		sort := "rating"
+		dir := models.SortDirectionEnumDesc
+		perPage := 1
+		res, err = db.Scene.Query(viewer, models.SceneQueryOptions{
+			QueryOptions: models.QueryOptions{FindFilter: &models.FindFilterType{Sort: &sort, Direction: &dir, PerPage: &perPage}},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, []int{sceneID}, res.IDs)
+
+		// clearing the rating
+		_, err = db.Scene.UpdatePartial(viewer, sceneID, models.ScenePartial{Rating: models.NewOptionalIntPtr(nil)})
+		assert.NoError(t, err)
+		s, err = db.Scene.Find(viewer, sceneID)
+		assert.NoError(t, err)
+		assert.Nil(t, s.Rating)
+		return nil
+	})
+}

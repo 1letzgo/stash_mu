@@ -38,7 +38,7 @@ type galleryRow struct {
 	Details       zero.String `db:"details"`
 	Photographer  zero.String `db:"photographer"`
 	// expressed as 1-100
-	Rating    null.Int  `db:"rating"`
+	Rating    null.Int  `db:"rating" goqu:"skipinsert,skipupdate"`
 	Organized bool      `db:"organized"`
 	StudioID  null.Int  `db:"studio_id,omitempty"`
 	FolderID  null.Int  `db:"folder_id,omitempty"`
@@ -107,7 +107,7 @@ func (r *galleryRowRecord) fromPartial(o models.GalleryPartial) {
 	r.setNullDate("date", "date_precision", o.Date)
 	r.setNullString("details", o.Details)
 	r.setNullString("photographer", o.Photographer)
-	r.setNullInt("rating", o.Rating)
+	// rating is per-user - see UpdatePartial
 	r.setBool("organized", o.Organized)
 	r.setNullInt("studio_id", o.StudioID)
 	r.setTimestamp("created_at", o.CreatedAt)
@@ -229,7 +229,7 @@ func (qb *GalleryStore) selectDataset() *goqu.SelectDataset {
 		galleryFolder,
 		goqu.On(galleryFolder.Col(idColumn).Eq(table.Col("folder_id"))),
 	).Select(
-		qb.table().All(),
+		qb.table().All(), goqu.L(galleryRatings.expr()).As("rating"),
 		galleriesFilesJoinTable.Col(fileIDColumn).As("primary_file_id"),
 		folders.Col("path").As("primary_file_folder_path"),
 		files.Col("basename").As("primary_file_basename"),
@@ -243,6 +243,10 @@ func (qb *GalleryStore) Create(ctx context.Context, newObject *models.CreateGall
 
 	id, err := qb.tableMgr.insertID(ctx, r)
 	if err != nil {
+		return err
+	}
+
+	if err := galleryRatings.set(ctx, id, newObject.Gallery.Rating); err != nil {
 		return err
 	}
 
@@ -298,6 +302,10 @@ func (qb *GalleryStore) Update(ctx context.Context, updatedObject *models.Update
 		return err
 	}
 
+	if err := galleryRatings.set(ctx, updatedObject.ID, updatedObject.Gallery.Rating); err != nil {
+		return err
+	}
+
 	if updatedObject.URLs.Loaded() {
 		if err := galleriesURLsTableMgr.replaceJoins(ctx, updatedObject.ID, updatedObject.URLs.List()); err != nil {
 			return err
@@ -350,6 +358,10 @@ func (qb *GalleryStore) UpdatePartial(ctx context.Context, id int, partial model
 		if err := qb.tableMgr.updateByID(ctx, id, r.Record); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := galleryRatings.setPartial(ctx, id, partial.Rating); err != nil {
+		return nil, err
 	}
 
 	if partial.URLs != nil {

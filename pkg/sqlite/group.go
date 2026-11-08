@@ -39,7 +39,7 @@ type groupRow struct {
 	Date          NullDate    `db:"date"`
 	DatePrecision null.Int    `db:"date_precision"`
 	// expressed as 1-100
-	Rating      null.Int    `db:"rating"`
+	Rating      null.Int    `db:"rating" goqu:"skipinsert,skipupdate"`
 	StudioID    null.Int    `db:"studio_id,omitempty"`
 	Director    zero.String `db:"director"`
 	Description zero.String `db:"description"`
@@ -93,7 +93,7 @@ func (r *groupRowRecord) fromPartial(o models.GroupPartial) {
 	r.setNullString("aliases", o.Aliases)
 	r.setNullInt("duration", o.Duration)
 	r.setNullDate("date", "date_precision", o.Date)
-	r.setNullInt("rating", o.Rating)
+	// rating is per-user - see UpdatePartial
 	r.setNullInt("studio_id", o.StudioID)
 	r.setNullString("director", o.Director)
 	r.setNullString("description", o.Synopsis)
@@ -166,7 +166,7 @@ func (qb *GroupStore) table() exp.IdentifierExpression {
 }
 
 func (qb *GroupStore) selectDataset() *goqu.SelectDataset {
-	return dialect.From(qb.table()).Select(qb.table().All())
+	return dialect.From(qb.table()).Select(qb.table().All(), goqu.L(groupRatings.expr()).As("rating"))
 }
 
 func (qb *GroupStore) Create(ctx context.Context, newObject *models.Group) error {
@@ -175,6 +175,10 @@ func (qb *GroupStore) Create(ctx context.Context, newObject *models.Group) error
 
 	id, err := qb.tableMgr.insertID(ctx, r)
 	if err != nil {
+		return err
+	}
+
+	if err := groupRatings.set(ctx, id, newObject.Rating); err != nil {
 		return err
 	}
 
@@ -222,6 +226,10 @@ func (qb *GroupStore) UpdatePartial(ctx context.Context, id int, partial models.
 		}
 	}
 
+	if err := groupRatings.setPartial(ctx, id, partial.Rating); err != nil {
+		return nil, err
+	}
+
 	if partial.URLs != nil {
 		if err := groupsURLsTableMgr.modifyJoins(ctx, id, partial.URLs.Values, partial.URLs.Mode); err != nil {
 			return nil, err
@@ -252,6 +260,10 @@ func (qb *GroupStore) Update(ctx context.Context, updatedObject *models.Group) e
 	r.fromGroup(*updatedObject)
 
 	if err := qb.tableMgr.updateByID(ctx, updatedObject.ID, r); err != nil {
+		return err
+	}
+
+	if err := groupRatings.set(ctx, updatedObject.ID, updatedObject.Rating); err != nil {
 		return err
 	}
 

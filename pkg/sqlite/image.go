@@ -34,13 +34,13 @@ type imageRow struct {
 	Title zero.String `db:"title"`
 	Code  zero.String `db:"code"`
 	// expressed as 1-100
-	Rating        null.Int    `db:"rating"`
+	Rating        null.Int    `db:"rating" goqu:"skipinsert,skipupdate"`
 	Date          NullDate    `db:"date"`
 	DatePrecision null.Int    `db:"date_precision"`
 	Details       zero.String `db:"details"`
 	Photographer  zero.String `db:"photographer"`
 	Organized     bool        `db:"organized"`
-	OCounter      int         `db:"o_counter"`
+	OCounter      int         `db:"o_counter" goqu:"skipinsert,skipupdate"`
 	StudioID      null.Int    `db:"studio_id,omitempty"`
 	CreatedAt     Timestamp   `db:"created_at"`
 	UpdatedAt     Timestamp   `db:"updated_at"`
@@ -104,12 +104,12 @@ type imageRowRecord struct {
 func (r *imageRowRecord) fromPartial(i models.ImagePartial) {
 	r.setNullString("title", i.Title)
 	r.setNullString("code", i.Code)
-	r.setNullInt("rating", i.Rating)
+	// rating is per-user - see UpdatePartial
 	r.setNullDate("date", "date_precision", i.Date)
 	r.setNullString("details", i.Details)
 	r.setNullString("photographer", i.Photographer)
 	r.setBool("organized", i.Organized)
-	r.setInt("o_counter", i.OCounter)
+	// o_counter is per-user - see UpdatePartial
 	r.setNullInt("studio_id", i.StudioID)
 	r.setTimestamp("created_at", i.CreatedAt)
 	r.setTimestamp("updated_at", i.UpdatedAt)
@@ -234,7 +234,7 @@ func (qb *ImageStore) selectDataset() *goqu.SelectDataset {
 			checksum.Col("type").Eq(models.FingerprintTypeMD5),
 		),
 	).Select(
-		qb.table().All(),
+		qb.table().All(), goqu.L(imageRatings.expr()).As("rating"), goqu.L(imageOCounterExpr).As("o_counter"),
 		imagesFilesJoinTable.Col(fileIDColumn).As("primary_file_id"),
 		folders.Col("path").As("primary_file_folder_path"),
 		files.Col("basename").As("primary_file_basename"),
@@ -248,6 +248,14 @@ func (qb *ImageStore) Create(ctx context.Context, newObject *models.CreateImageI
 
 	id, err := qb.tableMgr.insertID(ctx, r)
 	if err != nil {
+		return err
+	}
+
+	if err := imageRatings.set(ctx, id, newObject.Image.Rating); err != nil {
+		return err
+	}
+
+	if err := qb.SetOCounter(ctx, id, newObject.Image.OCounter); err != nil {
 		return err
 	}
 
@@ -313,6 +321,16 @@ func (qb *ImageStore) UpdatePartial(ctx context.Context, id int, partial models.
 		}
 	}
 
+	if err := imageRatings.setPartial(ctx, id, partial.Rating); err != nil {
+		return nil, err
+	}
+
+	if partial.OCounter.Set {
+		if err := qb.SetOCounter(ctx, id, partial.OCounter.Value); err != nil {
+			return nil, err
+		}
+	}
+
 	if partial.GalleryIDs != nil {
 		if err := imageGalleriesTableMgr.modifyJoins(ctx, id, partial.GalleryIDs.IDs, partial.GalleryIDs.Mode); err != nil {
 			return nil, err
@@ -353,6 +371,14 @@ func (qb *ImageStore) Update(ctx context.Context, updatedObject *models.Image) e
 	r.fromImage(*updatedObject)
 
 	if err := qb.tableMgr.updateByID(ctx, updatedObject.ID, r); err != nil {
+		return err
+	}
+
+	if err := imageRatings.set(ctx, updatedObject.ID, updatedObject.Rating); err != nil {
+		return err
+	}
+
+	if err := qb.SetOCounter(ctx, updatedObject.ID, updatedObject.OCounter); err != nil {
 		return err
 	}
 
@@ -722,7 +748,7 @@ func (qb *ImageStore) CountByGalleryID(ctx context.Context, galleryID int) (int,
 func (qb *ImageStore) OCountByPerformerID(ctx context.Context, performerID int) (int, error) {
 	table := qb.table()
 	joinTable := performersImagesJoinTable
-	q := dialect.Select(goqu.COALESCE(goqu.SUM("o_counter"), 0)).From(table).InnerJoin(joinTable, goqu.On(table.Col(idColumn).Eq(joinTable.Col(imageIDColumn)))).Where(joinTable.Col(performerIDColumn).Eq(performerID))
+	q := dialect.Select(goqu.COALESCE(goqu.SUM(goqu.L(imageOCounterExpr)), 0)).From(table).InnerJoin(joinTable, goqu.On(table.Col(idColumn).Eq(joinTable.Col(imageIDColumn)))).Where(joinTable.Col(performerIDColumn).Eq(performerID))
 
 	var ret int
 	if err := querySimple(ctx, q, &ret); err != nil {
@@ -740,7 +766,7 @@ func (qb *ImageStore) OCountByStudioID(ctx context.Context, studioID int, depth 
 	}
 
 	table := qb.table()
-	q := dialect.Select(goqu.COALESCE(goqu.SUM("o_counter"), 0)).From(table).Where(
+	q := dialect.Select(goqu.COALESCE(goqu.SUM(goqu.L(imageOCounterExpr)), 0)).From(table).Where(
 		table.Col(studioIDColumn).Eq(studioID),
 	)
 
@@ -754,7 +780,7 @@ func (qb *ImageStore) OCountByStudioID(ctx context.Context, studioID int, depth 
 func (qb *ImageStore) OCount(ctx context.Context) (int, error) {
 	table := qb.table()
 
-	q := dialect.Select(goqu.COALESCE(goqu.SUM("o_counter"), 0)).From(table)
+	q := dialect.Select(goqu.COALESCE(goqu.SUM(goqu.L(imageOCounterExpr)), 0)).From(table)
 	var ret int
 	if err := querySimple(ctx, q, &ret); err != nil {
 		return 0, err
@@ -772,7 +798,7 @@ func (qb *ImageStore) oCountByStudioIDRecursive(ctx context.Context, studioID in
 		INNER JOIN sub_studios ss ON s.parent_id = ss.id
 		WHERE ss.level < ? OR ? < 0
 	)
-	SELECT COALESCE(SUM(o_counter), 0) FROM images
+	SELECT COALESCE(SUM(`+imageOCounterExpr+`), 0) FROM images
 	WHERE images.studio_id IN (SELECT id FROM sub_studios)`
 
 	rows, err := dbWrapper.QueryxContext(ctx, q, studioID, depth, depth)

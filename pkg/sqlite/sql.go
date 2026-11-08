@@ -27,6 +27,9 @@ func selectIDs(qb *queryBuilder, tableName string) {
 }
 
 func getColumn(tableName string, columnName string) string {
+	if expr, ok := perUserColumnExpr(tableName, columnName); ok {
+		return expr
+	}
 	return tableName + "." + columnName
 }
 

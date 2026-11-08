@@ -120,7 +120,7 @@ func (qb *sceneFilterHandler) criterionHandler() criterionHandler {
 			criterion: sceneFilter.PhashDistance,
 		},
 
-		intCriterionHandler(sceneFilter.Rating100, "scenes.rating", nil),
+		intCriterionHandler(sceneFilter.Rating100, getColumn(sceneTable, ratingColumn), nil),
 		qb.oCountCriterionHandler(sceneFilter.OCounter),
 		boolCriterionHandler(sceneFilter.Organized, "scenes.organized", nil),
 
@@ -448,6 +448,8 @@ func (qb *sceneFilterHandler) isMissingCriterionHandler(isMissing *string) crite
 				f.addWhere("fingerprints_phash.fingerprint IS NULL")
 			case "cover":
 				f.addWhere("scenes.cover_blob IS NULL")
+			case "rating":
+				f.addWhere(ratingIsMissingClause(sceneTable))
 			default:
 				if err := validateIsMissing(*isMissing, []string{
 					"title", "code", "details", "director", "rating",

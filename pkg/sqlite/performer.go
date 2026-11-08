@@ -54,7 +54,7 @@ type performerRow struct {
 	CreatedAt            Timestamp   `db:"created_at"`
 	UpdatedAt            Timestamp   `db:"updated_at"`
 	// expressed as 1-100
-	Rating             null.Int    `db:"rating"`
+	Rating             null.Int    `db:"rating" goqu:"skipinsert,skipupdate"`
 	Details            zero.String `db:"details"`
 	DeathDate          NullDate    `db:"death_date"`
 	DeathDatePrecision null.Int    `db:"death_date_precision"`
@@ -169,7 +169,7 @@ func (r *performerRowRecord) fromPartial(o models.PerformerPartial) {
 	r.setBool("favorite", o.Favorite)
 	r.setTimestamp("created_at", o.CreatedAt)
 	r.setTimestamp("updated_at", o.UpdatedAt)
-	r.setNullInt("rating", o.Rating)
+	// rating is per-user - see UpdatePartial
 	r.setNullString("details", o.Details)
 	r.setNullDate("death_date", "death_date_precision", o.DeathDate)
 	r.setNullString("hair_color", o.HairColor)
@@ -262,7 +262,7 @@ func (qb *PerformerStore) table() exp.IdentifierExpression {
 }
 
 func (qb *PerformerStore) selectDataset() *goqu.SelectDataset {
-	return dialect.From(qb.table()).Select(qb.table().All())
+	return dialect.From(qb.table()).Select(qb.table().All(), goqu.L(performerRatings.expr()).As("rating"))
 }
 
 func (qb *PerformerStore) Create(ctx context.Context, newObject *models.CreatePerformerInput) error {
@@ -271,6 +271,10 @@ func (qb *PerformerStore) Create(ctx context.Context, newObject *models.CreatePe
 
 	id, err := qb.tableMgr.insertID(ctx, r)
 	if err != nil {
+		return err
+	}
+
+	if err := performerRatings.set(ctx, id, newObject.Performer.Rating); err != nil {
 		return err
 	}
 
@@ -329,6 +333,10 @@ func (qb *PerformerStore) UpdatePartial(ctx context.Context, id int, partial mod
 		}
 	}
 
+	if err := performerRatings.setPartial(ctx, id, partial.Rating); err != nil {
+		return nil, err
+	}
+
 	if partial.Aliases != nil {
 		if err := performersAliasesTableMgr.modifyJoins(ctx, id, partial.Aliases.Values, partial.Aliases.Mode); err != nil {
 			return nil, err
@@ -364,6 +372,10 @@ func (qb *PerformerStore) Update(ctx context.Context, updatedObject *models.Upda
 	r.fromPerformer(*updatedObject.Performer)
 
 	if err := qb.tableMgr.updateByID(ctx, updatedObject.ID, r); err != nil {
+		return err
+	}
+
+	if err := performerRatings.set(ctx, updatedObject.ID, updatedObject.Performer.Rating); err != nil {
 		return err
 	}
 
@@ -421,7 +433,7 @@ func (qb *PerformerStore) FindMany(ctx context.Context, ids []int) ([]*models.Pe
 	ret := make([]*models.Performer, len(ids))
 
 	if err := batchExec(ids, defaultBatchSize, func(batch []int) error {
-		q := goqu.Select("*").From(tableMgr.table).Where(tableMgr.byIDInts(batch...))
+		q := qb.selectDataset().Where(tableMgr.byIDInts(batch...))
 		unsorted, err := qb.getMany(ctx, q)
 		if err != nil {
 			return err

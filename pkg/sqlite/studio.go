@@ -40,7 +40,7 @@ type studioRow struct {
 	CreatedAt Timestamp   `db:"created_at"`
 	UpdatedAt Timestamp   `db:"updated_at"`
 	// expressed as 1-100
-	Rating        null.Int    `db:"rating"`
+	Rating        null.Int    `db:"rating" goqu:"skipinsert,skipupdate"`
 	Favorite      bool        `db:"favorite"`
 	Details       zero.String `db:"details"`
 	IgnoreAutoTag bool        `db:"ignore_auto_tag"`
@@ -89,7 +89,7 @@ func (r *studioRowRecord) fromPartial(o models.StudioPartial) {
 	r.setNullInt("parent_id", o.ParentID)
 	r.setTimestamp("created_at", o.CreatedAt)
 	r.setTimestamp("updated_at", o.UpdatedAt)
-	r.setNullInt("rating", o.Rating)
+	// rating is per-user - see UpdatePartial
 	r.setBool("favorite", o.Favorite)
 	r.setNullString("details", o.Details)
 	r.setBool("ignore_auto_tag", o.IgnoreAutoTag)
@@ -181,7 +181,7 @@ func (qb *StudioStore) table() exp.IdentifierExpression {
 }
 
 func (qb *StudioStore) selectDataset() *goqu.SelectDataset {
-	return dialect.From(qb.table()).Select(qb.table().All())
+	return dialect.From(qb.table()).Select(qb.table().All(), goqu.L(studioRatings.expr()).As("rating"))
 }
 
 func (qb *StudioStore) Create(ctx context.Context, newObject *models.CreateStudioInput) error {
@@ -192,6 +192,10 @@ func (qb *StudioStore) Create(ctx context.Context, newObject *models.CreateStudi
 
 	id, err := qb.tableMgr.insertID(ctx, r)
 	if err != nil {
+		return err
+	}
+
+	if err := studioRatings.set(ctx, id, newObject.Studio.Rating); err != nil {
 		return err
 	}
 
@@ -251,6 +255,10 @@ func (qb *StudioStore) UpdatePartial(ctx context.Context, input models.StudioPar
 		}
 	}
 
+	if err := studioRatings.setPartial(ctx, input.ID, input.Rating); err != nil {
+		return nil, err
+	}
+
 	if input.Aliases != nil {
 		if err := studiosAliasesTableMgr.modifyJoins(ctx, input.ID, input.Aliases.Values, input.Aliases.Mode); err != nil {
 			return nil, err
@@ -286,6 +294,10 @@ func (qb *StudioStore) Update(ctx context.Context, updatedObject *models.UpdateS
 	r.fromStudio(*updatedObject.Studio)
 
 	if err := qb.tableMgr.updateByID(ctx, updatedObject.ID, r); err != nil {
+		return err
+	}
+
+	if err := studioRatings.set(ctx, updatedObject.ID, updatedObject.Studio.Rating); err != nil {
 		return err
 	}
 
@@ -689,10 +701,10 @@ func (qb *StudioStore) sortByOCounter(direction string) string {
 			INNER JOIN %[4]s ON %[3]s.id = %[4]s.scene_id AND %[4]s.user_id = %[7]s
 			WHERE %[3]s.%[2]s = %[1]s.id
 		), 0) + COALESCE((
-			SELECT SUM(o_counter) FROM %[5]s
+			SELECT SUM(%[8]s) FROM %[5]s
 			WHERE %[5]s.%[2]s = %[1]s.id
 		), 0)
-	) %[6]s`, studioTable, studioIDColumn, sceneTable, scenesODatesTable, imageTable, getSortDirection(direction), currentUserToken)
+	) %[6]s`, studioTable, studioIDColumn, sceneTable, scenesODatesTable, imageTable, getSortDirection(direction), currentUserToken, imageOCounterExpr)
 }
 
 func (qb *StudioStore) sortByOCounterAll(direction string) string {
@@ -708,10 +720,10 @@ func (qb *StudioStore) sortByOCounterAll(direction string) string {
 			INNER JOIN %[4]s ON %[3]s.id = %[4]s.scene_id AND %[4]s.user_id = %[7]s
 			WHERE %[3]s.%[2]s IN (SELECT id FROM sub_studios)
 		), 0) + COALESCE((
-			SELECT SUM(o_counter) FROM %[5]s
+			SELECT SUM(%[8]s) FROM %[5]s
 			WHERE %[5]s.%[2]s IN (SELECT id FROM sub_studios)
 		), 0)
-	) %[6]s`, studioTable, studioIDColumn, sceneTable, scenesODatesTable, imageTable, getSortDirection(direction), currentUserToken)
+	) %[6]s`, studioTable, studioIDColumn, sceneTable, scenesODatesTable, imageTable, getSortDirection(direction), currentUserToken, imageOCounterExpr)
 }
 
 var studioSortOptions = sortOptions{

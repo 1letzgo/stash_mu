@@ -62,7 +62,7 @@ type sceneRow struct {
 	ProductionDate          NullDate    `db:"production_date"`
 	ProductionDatePrecision null.Int    `db:"production_date_precision"`
 	// expressed as 1-100
-	Rating    null.Int  `db:"rating"`
+	Rating    null.Int  `db:"rating" goqu:"skipinsert,skipupdate"`
 	Organized bool      `db:"organized"`
 	StudioID  null.Int  `db:"studio_id,omitempty"`
 	CreatedAt Timestamp `db:"created_at"`
@@ -145,7 +145,7 @@ func (r *sceneRowRecord) fromPartial(o models.ScenePartial) {
 	r.setNullString("director", o.Director)
 	r.setNullDate("date", "date_precision", o.Date)
 	r.setNullDate("production_date", "production_date_precision", o.ProductionDate)
-	r.setNullInt("rating", o.Rating)
+	// rating is per-user - see UpdatePartial
 	r.setBool("organized", o.Organized)
 	r.setNullInt("studio_id", o.StudioID)
 	r.setTimestamp("created_at", o.CreatedAt)
@@ -278,7 +278,7 @@ func (qb *SceneStore) selectDataset() *goqu.SelectDataset {
 			oshash.Col("type").Eq(models.FingerprintTypeOshash),
 		),
 	).Select(
-		qb.table().All(),
+		qb.table().All(), goqu.L(sceneRatings.expr()).As("rating"),
 		goqu.L(sceneResumeTimeExpr).As("resume_time"),
 		goqu.L(scenePlayDurationExpr).As("play_duration"),
 		scenesFilesJoinTable.Col(fileIDColumn).As("primary_file_id"),
@@ -295,6 +295,10 @@ func (qb *SceneStore) Create(ctx context.Context, newObject *models.Scene, fileI
 
 	id, err := qb.tableMgr.insertID(ctx, r)
 	if err != nil {
+		return err
+	}
+
+	if err := sceneRatings.set(ctx, id, newObject.Rating); err != nil {
 		return err
 	}
 
@@ -370,6 +374,10 @@ func (qb *SceneStore) UpdatePartial(ctx context.Context, id int, partial models.
 		}
 	}
 
+	if err := sceneRatings.setPartial(ctx, id, partial.Rating); err != nil {
+		return nil, err
+	}
+
 	if partial.ResumeTime.Set {
 		if err := qb.upsertActivity(ctx, id, "resume_time", partial.ResumeTime.Value, false); err != nil {
 			return nil, err
@@ -425,6 +433,10 @@ func (qb *SceneStore) Update(ctx context.Context, updatedObject *models.Scene) e
 	r.fromScene(*updatedObject)
 
 	if err := qb.tableMgr.updateByID(ctx, updatedObject.ID, r); err != nil {
+		return err
+	}
+
+	if err := sceneRatings.set(ctx, updatedObject.ID, updatedObject.Rating); err != nil {
 		return err
 	}
 

@@ -56,7 +56,7 @@ func (qb *studioFilterHandler) criterionHandler() criterionHandler {
 		stringCriterionHandler(studioFilter.Name, studioTable+".name"),
 		stringCriterionHandler(studioFilter.Details, studioTable+".details"),
 		qb.urlsCriterionHandler(studioFilter.URL),
-		intCriterionHandler(studioFilter.Rating100, studioTable+".rating", nil),
+		intCriterionHandler(studioFilter.Rating100, getColumn(studioTable, ratingColumn), nil),
 		boolCriterionHandler(studioFilter.Favorite, studioTable+".favorite", nil),
 		boolCriterionHandler(studioFilter.IgnoreAutoTag, studioTable+".ignore_auto_tag", nil),
 		boolCriterionHandler(studioFilter.Organized, studioTable+".organized", nil),
@@ -156,6 +156,8 @@ func (qb *studioFilterHandler) isMissingCriterionHandler(isMissing *string) crit
 			case "tags":
 				f.addLeftJoin(studiosTagsTable, "tags_join", "tags_join.studio_id = studios.id")
 				f.addWhere("tags_join.studio_id IS NULL")
+			case "rating":
+				f.addWhere(ratingIsMissingClause(studioTable))
 			default:
 				if err := validateIsMissing(*isMissing, []string{
 					"details", "rating",
