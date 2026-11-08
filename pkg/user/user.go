@@ -72,11 +72,20 @@ type User struct {
 	ID       int
 	Username string
 	Role     Role
+	// Libraries are the library paths the user may access. Empty means all
+	// libraries. Ignored for admins.
+	Libraries []string
 }
 
 // IsAdmin returns true if the user has the admin role.
 func (u User) IsAdmin() bool {
 	return u.Role == RoleAdmin
+}
+
+// LibraryRestricted returns true if the user may only access the content of
+// specific libraries.
+func (u User) LibraryRestricted() bool {
+	return !u.IsAdmin() && len(u.Libraries) > 0
 }
 
 // System is the principal used when authentication is not configured, and for

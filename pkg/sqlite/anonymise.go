@@ -100,7 +100,7 @@ func (db *Anonymiser) deleteBlobs() error {
 
 // anonymiseUsers removes credentials and replaces user names.
 func (db *Anonymiser) anonymiseUsers() error {
-	_, err := db.writeDB.Exec("UPDATE " + userTable + " SET username = 'user' || id, password_hash = '', api_key = NULL, ui_config = NULL")
+	_, err := db.writeDB.Exec("UPDATE " + userTable + " SET username = 'user' || id, password_hash = '', api_key = NULL, ui_config = NULL, libraries = NULL")
 	return err
 }
 

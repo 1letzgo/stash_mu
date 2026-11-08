@@ -12,6 +12,20 @@ Dieser Fork ergänzt Stash um mehrere Benutzer mit Rollen. Die Rechte werden ser
 
 Neue GraphQL-Operationen werden standardmäßig abgelehnt (nur Admin), bis sie in `internal/api/authorization.go` eingestuft sind. Ein Test stellt sicher, dass jede Operation des Schemas eine Regel hat.
 
+## Libraries pro Benutzer
+
+Viewern und Editoren kann man unter Einstellungen → Benutzer einzelne Libraries (die Pfade unter Einstellungen → Library) zuweisen:
+
+- Der Benutzer sieht nur Szenen und Bilder mit einer Datei in diesen Libraries. Galerien sind sichtbar, wenn ihr Ordner bzw. ihre Zip-Datei darin liegt.
+- Marker und Kapitel folgen ihrer Szene bzw. Galerie.
+- Performer, Studios, Tags und Gruppen erscheinen nur, wenn sie mit sichtbaren Inhalten verknüpft sind. Übergeordnete Studios und Tags erscheinen, wenn eine direkte Unterebene sichtbare Inhalte hat.
+- Zähler und Statistiken zählen nur sichtbare Inhalte.
+- Gilt überall: Listen, Suche, Einzelabruf per ID, Streams, Vorschaubilder, Bilder und Datei-/Ordnersuche. Versteckte Objekte lassen sich auch nicht per ID ändern oder löschen.
+- Keine Zuweisung bedeutet Zugriff auf alle Libraries. Admins sehen immer alles.
+- Szenen ohne Datei und leere manuelle Galerien sind für alle sichtbar.
+
+Nicht eingeschränkt sind Performer, Studios, Tags und Gruppen beim Einzelabruf per ID, damit eingeschränkte Editoren neue Metadaten anlegen können.
+
 ## Was pro Benutzer gilt
 
 - Wiedergaben, O-Zähler (Szenen und Bilder), Resume-Position und Wiedergabedauer
@@ -21,7 +35,7 @@ Neue GraphQL-Operationen werden standardmäßig abgelehnt (nur Admin), bis sie i
 
 Global bleiben: Favoriten, alle Metadaten und die Server-Einstellungen.
 
-## Migration (Datenbank-Schema 86 → 90)
+## Migration (Datenbank-Schema 86 → 91)
 
 Beim ersten Start des Multi-User-Images zeigt Stash die Migrationsseite.
 
@@ -37,7 +51,7 @@ Getestet mit einer Datenbank des offiziellen Stash (Commit `aefc937`, Schema 86)
 
 ### Weitere Szenarien
 
-- **Zurück zum offiziellen Image:** Das offizielle Stash verweigert den Start mit einer migrierten Datenbank (`schema version 90 is incompatible with required schema version 86`). Für den Rückweg das Backup von vor der Migration zurückspielen. Änderungen seit der Migration gehen dabei verloren.
+- **Zurück zum offiziellen Image:** Das offizielle Stash verweigert den Start mit einer migrierten Datenbank (`schema version 91 is incompatible with required schema version 86`). Für den Rückweg das Backup von vor der Migration zurückspielen. Änderungen seit der Migration gehen dabei verloren.
 - **Metadaten-Export/Import:** Export und Import laufen als Admin. Exportiert werden die Bewertungen und der Verlauf **dieses** Admins. Bei einem Import mit Reset bleiben alle Benutzerkonten (inklusive Login, Rolle, Key, UI-Einstellungen) erhalten, die persönlichen Bewertungen und Verläufe anderer Benutzer aber nicht.
 - **Benutzer löschen:** entfernt auch dessen Bewertungen, Verlauf, O-Zähler, Saved Filters und Einstellungen. Der Haupt-Admin (ID 1) und der letzte Admin können nicht gelöscht oder herabgestuft werden.
 - **Datenbank-Backup/Restore:** Die `users`-Tabelle steckt in der Datenbank und wird mitgesichert.

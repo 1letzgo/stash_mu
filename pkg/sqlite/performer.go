@@ -587,13 +587,13 @@ func (qb *PerformerStore) CountByTagID(ctx context.Context, tagID int) (int, err
 }
 
 func (qb *PerformerStore) Count(ctx context.Context) (int, error) {
-	q := dialect.Select(goqu.COUNT("*")).From(qb.table())
+	q := dialect.Select(goqu.COUNT("*")).From(qb.table()).Where(goqu.L(performerVisibleToken))
 	return count(ctx, q)
 }
 
 func (qb *PerformerStore) All(ctx context.Context) ([]*models.Performer, error) {
 	table := qb.table()
-	return qb.getMany(ctx, qb.selectDataset().Order(table.Col("name").Asc()))
+	return qb.getMany(ctx, qb.selectDataset().Where(goqu.L(performerVisibleToken)).Order(table.Col("name").Asc()))
 }
 
 func (qb *PerformerStore) QueryForAutoTag(ctx context.Context, words []string) ([]*models.Performer, error) {

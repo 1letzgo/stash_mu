@@ -38,6 +38,21 @@ func personaliseConfigResult(ctx context.Context, ret *ConfigResult) {
 		if !current.IsAdmin() {
 			redactConfigGeneral(ret.General)
 		}
+
+		if current.LibraryRestricted() {
+			// only show the libraries the user may access
+			allowed := make(map[string]bool)
+			for _, l := range current.Libraries {
+				allowed[l] = true
+			}
+			var stashes []*config.StashConfig
+			for _, sp := range ret.General.Stashes {
+				if allowed[sp.Path] {
+					stashes = append(stashes, sp)
+				}
+			}
+			ret.General.Stashes = stashes
+		}
 	}
 }
 

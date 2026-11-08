@@ -11,6 +11,8 @@ type User {
   id: ID!
   username: String!
   role: UserRole!
+  "Library paths the user may access. Empty means all libraries. Not applicable to admins."
+  libraries: [String!]!
   created_at: Time!
   updated_at: Time!
 }
@@ -19,6 +21,8 @@ input UserCreateInput {
   username: String!
   password: String!
   role: UserRole!
+  "Library paths the user may access. Empty or omitted means all libraries."
+  libraries: [String!]
 }
 
 input UserUpdateInput {
@@ -27,6 +31,8 @@ input UserUpdateInput {
   "Sets a new password. Omit to leave unchanged"
   password: String
   role: UserRole
+  "Library paths the user may access. Empty means all libraries. Omit to leave unchanged."
+  libraries: [String!]
 }
 
 input UserChangePasswordInput {

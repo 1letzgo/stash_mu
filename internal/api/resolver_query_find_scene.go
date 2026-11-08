@@ -97,6 +97,7 @@ func (r *queryResolver) FindScenes(
 
 		if len(sceneIDs) > 0 {
 			scenes, err = r.repository.Scene.FindMany(ctx, sceneIDs)
+			scenes = compactNil(scenes)
 			if err == nil {
 				result.Count = len(scenes)
 				for _, s := range scenes {

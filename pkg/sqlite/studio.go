@@ -529,13 +529,13 @@ func (qb *StudioStore) FindByStashIDStatus(ctx context.Context, hasStashID bool,
 }
 
 func (qb *StudioStore) Count(ctx context.Context) (int, error) {
-	q := dialect.Select(goqu.COUNT("*")).From(qb.table())
+	q := dialect.Select(goqu.COUNT("*")).From(qb.table()).Where(goqu.L(studioVisibleToken))
 	return count(ctx, q)
 }
 
 func (qb *StudioStore) All(ctx context.Context) ([]*models.Studio, error) {
 	table := qb.table()
-	return qb.getMany(ctx, qb.selectDataset().Order(table.Col(studioNameColumn).Asc()))
+	return qb.getMany(ctx, qb.selectDataset().Where(goqu.L(studioVisibleToken)).Order(table.Col(studioNameColumn).Asc()))
 }
 
 func (qb *StudioStore) QueryForAutoTag(ctx context.Context, words []string) ([]*models.Studio, error) {

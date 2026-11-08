@@ -607,7 +607,7 @@ func (qb *FolderStore) queryGroupedFields(ctx context.Context, options models.Fo
 		return models.NewFolderQueryResult(qb), nil
 	}
 
-	aggregateQuery := qb.newQuery()
+	aggregateQuery := qb.newAggregateQuery()
 
 	if options.Count {
 		aggregateQuery.addColumn("COUNT(DISTINCT temp.id) as total")

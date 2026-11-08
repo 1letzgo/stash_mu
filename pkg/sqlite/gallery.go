@@ -234,7 +234,7 @@ func (qb *GalleryStore) selectDataset() *goqu.SelectDataset {
 		folders.Col("path").As("primary_file_folder_path"),
 		files.Col("basename").As("primary_file_basename"),
 		galleryFolder.Col("path").As("folder_path"),
-	)
+	).Where(goqu.L(galleryVisibleToken))
 }
 
 func (qb *GalleryStore) Create(ctx context.Context, newObject *models.CreateGalleryInput) error {
@@ -295,6 +295,10 @@ func (qb *GalleryStore) Create(ctx context.Context, newObject *models.CreateGall
 }
 
 func (qb *GalleryStore) Update(ctx context.Context, updatedObject *models.UpdateGalleryInput) error {
+	if err := checkVisible(ctx, galleryTable, updatedObject.ID); err != nil {
+		return err
+	}
+
 	var r galleryRow
 	r.fromGallery(*updatedObject.Gallery)
 
@@ -346,6 +350,10 @@ func (qb *GalleryStore) Update(ctx context.Context, updatedObject *models.Update
 }
 
 func (qb *GalleryStore) UpdatePartial(ctx context.Context, id int, partial models.GalleryPartial) (*models.Gallery, error) {
+	if err := checkVisible(ctx, galleryTable, id); err != nil {
+		return nil, err
+	}
+
 	r := galleryRowRecord{
 		updateRecord{
 			Record: make(exp.Record),
@@ -399,6 +407,10 @@ func (qb *GalleryStore) UpdatePartial(ctx context.Context, id int, partial model
 }
 
 func (qb *GalleryStore) Destroy(ctx context.Context, id int) error {
+	if err := checkVisible(ctx, galleryTable, id); err != nil {
+		return err
+	}
+
 	return qb.tableMgr.destroyExisting(ctx, []int{id})
 }
 
@@ -456,6 +468,10 @@ func (qb *GalleryStore) FindMany(ctx context.Context, ids []int) ([]*models.Gall
 
 	for i := range galleries {
 		if galleries[i] == nil {
+			if libraryRestricted(ctx) {
+				// not visible to the current user
+				continue
+			}
 			return nil, fmt.Errorf("gallery with id %d not found", ids[i])
 		}
 	}
@@ -735,7 +751,7 @@ func (qb *GalleryStore) FindUserGalleryByTitle(ctx context.Context, title string
 }
 
 func (qb *GalleryStore) Count(ctx context.Context) (int, error) {
-	q := dialect.Select(goqu.COUNT("*")).From(qb.table())
+	q := dialect.Select(goqu.COUNT("*")).From(qb.table()).Where(goqu.L(galleryVisibleToken))
 	return count(ctx, q)
 }
 

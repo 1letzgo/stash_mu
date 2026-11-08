@@ -940,7 +940,11 @@
                 "viewer": "Betrachter"
             },
             "signed_in_as": "Angemeldet als",
-            "you": "du"
+            "you": "du",
+            "all_libraries": "Alle",
+            "libraries": "Bibliotheken",
+            "libraries_admin": "Administratoren haben immer Zugriff auf alle Bibliotheken.",
+            "libraries_desc": "Der Benutzer sieht nur Szenen, Bilder und Galerien in den ausgewählten Bibliotheken sowie die damit verknüpften Darsteller, Studios, Tags und Gruppen. Keine Auswahl erlaubt alle Bibliotheken."
         }
     },
     "configuration": "Konfiguration",

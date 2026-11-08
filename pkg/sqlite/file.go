@@ -920,7 +920,7 @@ func (qb *FileStore) queryGroupedFields(ctx context.Context, options models.File
 		return models.NewFileQueryResult(qb), nil
 	}
 
-	aggregateQuery := qb.newQuery()
+	aggregateQuery := qb.newAggregateQuery()
 
 	if options.Count {
 		aggregateQuery.addColumn("COUNT(DISTINCT temp.id) as total")

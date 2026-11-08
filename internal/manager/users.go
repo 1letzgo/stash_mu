@@ -232,9 +232,10 @@ func (s *UserService) syncPrimaryToConfig(u *models.User) {
 
 // UserCreateInput holds the values for creating a user.
 type UserCreateInput struct {
-	Username string
-	Password string
-	Role     user.Role
+	Username  string
+	Password  string
+	Role      user.Role
+	Libraries []string
 }
 
 // Create creates a new user. The first user created is always an admin.
@@ -279,12 +280,18 @@ func (s *UserService) Create(ctx context.Context, input UserCreateInput) (*model
 			apiKey = s.Config.GetAPIKey()
 		}
 
+		libraries, err := s.validateLibraries(input.Libraries)
+		if err != nil {
+			return err
+		}
+
 		now := time.Now()
 		ret = &models.User{
 			Username:     username,
 			PasswordHash: hash,
 			Role:         role,
 			APIKey:       apiKey,
+			Libraries:    libraries,
 			CreatedAt:    now,
 			UpdatedAt:    now,
 		}
@@ -306,6 +313,8 @@ type UserUpdateInput struct {
 	Password *string
 	Role     *user.Role
 	UIConfig map[string]interface{}
+	// Libraries replaces the user's libraries if not nil.
+	Libraries *[]string
 }
 
 // Update updates an existing user.
@@ -367,6 +376,14 @@ func (s *UserService) Update(ctx context.Context, input UserUpdateInput) (*model
 
 		if input.UIConfig != nil {
 			u.UIConfig = input.UIConfig
+		}
+
+		if input.Libraries != nil {
+			libraries, err := s.validateLibraries(*input.Libraries)
+			if err != nil {
+				return err
+			}
+			u.Libraries = libraries
 		}
 
 		u.UpdatedAt = time.Now()
@@ -543,4 +560,38 @@ func (s *UserService) Restore(ctx context.Context, users []models.User) error {
 		}
 		return nil
 	})
+}
+
+// ErrUnknownLibrary is returned when assigning a path that is not a
+// configured library.
+var ErrUnknownLibrary = errors.New("not a configured library path")
+
+// validateLibraries checks that all paths are configured library paths, and
+// returns them de-duplicated.
+func (s *UserService) validateLibraries(paths []string) ([]string, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+
+	configured := make(map[string]bool)
+	if s.Config != nil {
+		for _, sp := range s.Config.GetStashPaths() {
+			configured[sp.Path] = true
+		}
+	}
+
+	var ret []string
+	seen := make(map[string]bool)
+	for _, p := range paths {
+		p = strings.TrimSpace(p)
+		if p == "" || seen[p] {
+			continue
+		}
+		if !configured[p] {
+			return nil, fmt.Errorf("%w: %s", ErrUnknownLibrary, p)
+		}
+		seen[p] = true
+		ret = append(ret, p)
+	}
+	return ret, nil
 }

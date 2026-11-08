@@ -4,6 +4,7 @@ import { FormattedMessage, useIntl } from "react-intl";
 import * as GQL from "src/core/generated-graphql";
 import { useToast } from "src/hooks/Toast";
 import { useCurrentUser } from "src/hooks/CurrentUser";
+import { useConfigurationContext } from "src/hooks/Config";
 import { ModalComponent } from "../Shared/Modal";
 import { LoadingIndicator } from "../Shared/LoadingIndicator";
 import { SettingSection } from "./SettingSection";
@@ -46,7 +47,16 @@ const UserDialog: React.FC<IUserDialog> = ({ user, onClose }) => {
   const [username, setUsername] = useState(user?.username ?? "");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState(user?.role ?? GQL.UserRole.Viewer);
+  const [libraries, setLibraries] = useState<string[]>(user?.libraries ?? []);
   const [saving, setSaving] = useState(false);
+  const { configuration } = useConfigurationContext();
+  const libraryPaths = (configuration.general.stashes ?? []).map((s) => s.path);
+
+  function toggleLibrary(path: string, checked: boolean) {
+    setLibraries((current) =>
+      checked ? [...current, path] : current.filter((p) => p !== path)
+    );
+  }
 
   const [createUser] = GQL.useUserCreateMutation();
   const [updateUser] = GQL.useUserUpdateMutation();
@@ -59,7 +69,7 @@ const UserDialog: React.FC<IUserDialog> = ({ user, onClose }) => {
     try {
       if (isNew) {
         await createUser({
-          variables: { input: { username, password, role } },
+          variables: { input: { username, password, role, libraries } },
         });
       } else {
         await updateUser({
@@ -69,6 +79,7 @@ const UserDialog: React.FC<IUserDialog> = ({ user, onClose }) => {
               username: username !== user.username ? username : undefined,
               password: password !== "" ? password : undefined,
               role: role !== user.role ? role : undefined,
+              libraries,
             },
           },
         });
@@ -142,6 +153,34 @@ const UserDialog: React.FC<IUserDialog> = ({ user, onClose }) => {
           />
         </Form.Text>
       </Form.Group>
+      <Form.Group>
+        <Form.Label>
+          <FormattedMessage id="config.users.libraries" />
+        </Form.Label>
+        {role === GQL.UserRole.Admin ? (
+          <Form.Text className="text-muted">
+            <FormattedMessage id="config.users.libraries_admin" />
+          </Form.Text>
+        ) : (
+          <>
+            {libraryPaths.map((path) => (
+              <Form.Check
+                key={path}
+                id={`library-${path}`}
+                type="checkbox"
+                label={path}
+                checked={libraries.includes(path)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  toggleLibrary(path, e.currentTarget.checked)
+                }
+              />
+            ))}
+            <Form.Text className="text-muted">
+              <FormattedMessage id="config.users.libraries_desc" />
+            </Form.Text>
+          </>
+        )}
+      </Form.Group>
     </ModalComponent>
   );
 };
@@ -212,6 +251,9 @@ export const SettingsUsersPanel: React.FC = () => {
               <th>
                 <FormattedMessage id="config.users.role" />
               </th>
+              <th>
+                <FormattedMessage id="config.users.libraries" />
+              </th>
               <th />
             </tr>
           </thead>
@@ -231,6 +273,15 @@ export const SettingsUsersPanel: React.FC = () => {
                   <FormattedMessage
                     id={`config.users.roles.${u.role.toLowerCase()}`}
                   />
+                </td>
+                <td>
+                  {u.role === GQL.UserRole.Admin || u.libraries.length === 0 ? (
+                    <span className="text-muted">
+                      <FormattedMessage id="config.users.all_libraries" />
+                    </span>
+                  ) : (
+                    u.libraries.join(", ")
+                  )}
                 </td>
                 <td className="text-right">
                   <Button size="sm" onClick={() => setEditing(u)}>

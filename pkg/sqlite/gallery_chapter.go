@@ -87,7 +87,7 @@ func (qb *GalleryChapterStore) table() exp.IdentifierExpression {
 }
 
 func (qb *GalleryChapterStore) selectDataset() *goqu.SelectDataset {
-	return dialect.From(qb.table()).Select(qb.table().All())
+	return dialect.From(qb.table()).Select(qb.table().All()).Where(goqu.L(chapterVisibleToken))
 }
 
 func (qb *GalleryChapterStore) Create(ctx context.Context, newObject *models.GalleryChapter) error {
@@ -110,6 +110,10 @@ func (qb *GalleryChapterStore) Create(ctx context.Context, newObject *models.Gal
 }
 
 func (qb *GalleryChapterStore) Update(ctx context.Context, updatedObject *models.GalleryChapter) error {
+	if err := checkVisible(ctx, galleriesChaptersTable, updatedObject.ID); err != nil {
+		return err
+	}
+
 	var r galleryChapterRow
 	r.fromGalleryChapter(*updatedObject)
 
@@ -121,6 +125,10 @@ func (qb *GalleryChapterStore) Update(ctx context.Context, updatedObject *models
 }
 
 func (qb *GalleryChapterStore) UpdatePartial(ctx context.Context, id int, partial models.GalleryChapterPartial) (*models.GalleryChapter, error) {
+	if err := checkVisible(ctx, galleriesChaptersTable, id); err != nil {
+		return nil, err
+	}
+
 	r := galleryChapterRowRecord{
 		updateRecord{
 			Record: make(exp.Record),
@@ -139,6 +147,10 @@ func (qb *GalleryChapterStore) UpdatePartial(ctx context.Context, id int, partia
 }
 
 func (qb *GalleryChapterStore) Destroy(ctx context.Context, id int) error {
+	if err := checkVisible(ctx, galleriesChaptersTable, id); err != nil {
+		return err
+	}
+
 	return qb.destroyExisting(ctx, []int{id})
 }
 
@@ -168,6 +180,10 @@ func (qb *GalleryChapterStore) FindMany(ctx context.Context, ids []int) ([]*mode
 
 	for i := range ret {
 		if ret[i] == nil {
+			if libraryRestricted(ctx) {
+				// not visible to the current user
+				continue
+			}
 			return nil, fmt.Errorf("gallery chapter with id %d not found", ids[i])
 		}
 	}

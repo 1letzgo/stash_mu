@@ -18,9 +18,10 @@ func (r *queryResolver) Me(ctx context.Context) (*models.User, error) {
 
 	// authentication not configured - return the system user
 	return &models.User{
-		ID:       p.ID,
-		Username: p.Username,
-		Role:     p.Role,
+		ID:        p.ID,
+		Username:  p.Username,
+		Role:      p.Role,
+		Libraries: p.Libraries,
 	}, nil
 }
 
@@ -44,9 +45,10 @@ func (r *mutationResolver) UserCreate(ctx context.Context, input UserCreateInput
 	}
 
 	return manager.GetInstance().Users.Create(ctx, manager.UserCreateInput{
-		Username: input.Username,
-		Password: input.Password,
-		Role:     input.Role,
+		Username:  input.Username,
+		Password:  input.Password,
+		Role:      input.Role,
+		Libraries: input.Libraries,
 	})
 }
 
@@ -61,10 +63,11 @@ func (r *mutationResolver) UserUpdate(ctx context.Context, input UserUpdateInput
 	}
 
 	return manager.GetInstance().Users.Update(ctx, manager.UserUpdateInput{
-		ID:       id,
-		Username: input.Username,
-		Password: input.Password,
-		Role:     input.Role,
+		ID:        id,
+		Username:  input.Username,
+		Password:  input.Password,
+		Role:      input.Role,
+		Libraries: librariesInput(input.Libraries),
 	})
 }
 
@@ -112,4 +115,13 @@ func (r *mutationResolver) ChangePassword(ctx context.Context, input UserChangeP
 		return false, err
 	}
 	return true, nil
+}
+
+// librariesInput converts an optional libraries input; a provided empty list
+// clears the libraries.
+func librariesInput(v []string) *[]string {
+	if v == nil {
+		return nil
+	}
+	return &v
 }

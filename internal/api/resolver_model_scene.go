@@ -205,7 +205,7 @@ func (r *sceneResolver) Galleries(ctx context.Context, obj *models.Scene) (ret [
 
 	var errs []error
 	ret, errs = loaders.From(ctx).GalleryByID.LoadAll(obj.GalleryIDs.List())
-	return ret, firstError(errs)
+	return compactNil(ret), firstError(errs)
 }
 
 func (r *sceneResolver) Studio(ctx context.Context, obj *models.Scene) (ret *models.Studio, err error) {

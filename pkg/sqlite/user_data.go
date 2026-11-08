@@ -22,9 +22,11 @@ const currentUserToken = "__STASH_CURRENT_USER_ID__"
 // bindCurrentUser replaces currentUserToken in the query with the id of the
 // current user.
 func bindCurrentUser(ctx context.Context, query string) string {
-	if !strings.Contains(query, currentUserToken) {
+	if !strings.Contains(query, visibilityTokenPrefix) {
 		return query
 	}
+	// visibility conditions may themselves refer to the current user
+	query = bindVisibility(ctx, query)
 	return strings.ReplaceAll(query, currentUserToken, strconv.Itoa(user.CurrentID(ctx)))
 }
 

@@ -27,6 +27,7 @@ type userRow struct {
 	Role         string      `db:"role"`
 	APIKey       zero.String `db:"api_key"`
 	UIConfig     zero.String `db:"ui_config"`
+	Libraries    zero.String `db:"libraries"`
 	CreatedAt    Timestamp   `db:"created_at"`
 	UpdatedAt    Timestamp   `db:"updated_at"`
 }
@@ -41,6 +42,10 @@ func (r *userRow) fromUser(o models.User) {
 	if len(o.UIConfig) > 0 {
 		r.UIConfig = zero.StringFrom(encodeJSONOrEmpty(o.UIConfig))
 	}
+	r.Libraries = zero.StringFrom("")
+	if len(o.Libraries) > 0 {
+		r.Libraries = zero.StringFrom(encodeJSONOrEmpty(o.Libraries))
+	}
 	r.CreatedAt = Timestamp{Timestamp: o.CreatedAt}
 	r.UpdatedAt = Timestamp{Timestamp: o.UpdatedAt}
 }
@@ -54,6 +59,10 @@ func (r *userRow) resolve() *models.User {
 		APIKey:       r.APIKey.String,
 		CreatedAt:    r.CreatedAt.Timestamp,
 		UpdatedAt:    r.UpdatedAt.Timestamp,
+	}
+
+	if r.Libraries.String != "" {
+		decodeJSON(r.Libraries.String, &ret.Libraries)
 	}
 
 	if r.UIConfig.String != "" {
@@ -121,6 +130,7 @@ func (qb *UserStore) CreateWithID(ctx context.Context, u *models.User) error {
 		"role":          r.Role,
 		"api_key":       r.APIKey,
 		"ui_config":     r.UIConfig,
+		"libraries":     r.Libraries,
 		"created_at":    r.CreatedAt,
 		"updated_at":    r.UpdatedAt,
 	})

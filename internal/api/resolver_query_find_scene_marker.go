@@ -19,6 +19,7 @@ func (r *queryResolver) FindSceneMarkers(ctx context.Context, sceneMarkerFilter 
 
 		if len(idInts) > 0 {
 			sceneMarkers, err = r.repository.SceneMarker.FindMany(ctx, idInts)
+			sceneMarkers = compactNil(sceneMarkers)
 			total = len(sceneMarkers)
 		} else {
 			sceneMarkers, total, err = r.repository.SceneMarker.Query(ctx, sceneMarkerFilter, filter)

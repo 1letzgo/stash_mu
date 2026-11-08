@@ -286,7 +286,7 @@ func (qb *SceneStore) selectDataset() *goqu.SelectDataset {
 		files.Col("basename").As("primary_file_basename"),
 		checksum.Col("fingerprint").As("primary_file_checksum"),
 		oshash.Col("fingerprint").As("primary_file_oshash"),
-	)
+	).Where(goqu.L(sceneVisibleToken))
 }
 
 func (qb *SceneStore) Create(ctx context.Context, newObject *models.Scene, fileIDs []models.FileID) error {
@@ -360,6 +360,10 @@ func (qb *SceneStore) Create(ctx context.Context, newObject *models.Scene, fileI
 }
 
 func (qb *SceneStore) UpdatePartial(ctx context.Context, id int, partial models.ScenePartial) (*models.Scene, error) {
+	if err := checkVisible(ctx, sceneTable, id); err != nil {
+		return nil, err
+	}
+
 	r := sceneRowRecord{
 		updateRecord{
 			Record: make(exp.Record),
@@ -429,6 +433,10 @@ func (qb *SceneStore) UpdatePartial(ctx context.Context, id int, partial models.
 }
 
 func (qb *SceneStore) Update(ctx context.Context, updatedObject *models.Scene) error {
+	if err := checkVisible(ctx, sceneTable, updatedObject.ID); err != nil {
+		return err
+	}
+
 	var r sceneRow
 	r.fromScene(*updatedObject)
 
@@ -495,6 +503,10 @@ func (qb *SceneStore) Update(ctx context.Context, updatedObject *models.Scene) e
 }
 
 func (qb *SceneStore) Destroy(ctx context.Context, id int) error {
+	if err := checkVisible(ctx, sceneTable, id); err != nil {
+		return err
+	}
+
 	// must handle image checksums manually
 	if err := qb.destroyCover(ctx, id); err != nil {
 		return err
@@ -554,6 +566,10 @@ func (qb *SceneStore) FindMany(ctx context.Context, ids []int) ([]*models.Scene,
 
 	for i := range scenes {
 		if scenes[i] == nil {
+			if libraryRestricted(ctx) {
+				// not visible to the current user
+				continue
+			}
 			return nil, fmt.Errorf("scene with id %d not found", ids[i])
 		}
 	}
@@ -826,8 +842,11 @@ func (qb *SceneStore) FindByGalleryID(ctx context.Context, galleryID int) ([]*mo
 
 func (qb *SceneStore) CountByPerformerID(ctx context.Context, performerID int) (int, error) {
 	joinTable := scenesPerformersJoinTable
+	table := qb.table()
 
-	q := dialect.Select(goqu.COUNT("*")).From(joinTable).Where(joinTable.Col(performerIDColumn).Eq(performerID))
+	q := dialect.Select(goqu.COUNT("*")).From(joinTable).InnerJoin(
+		table, goqu.On(table.Col(idColumn).Eq(joinTable.Col(sceneIDColumn))),
+	).Where(joinTable.Col(performerIDColumn).Eq(performerID), goqu.L(sceneVisibleToken))
 	return count(ctx, q)
 }
 
@@ -844,7 +863,7 @@ func (qb *SceneStore) OCountByPerformerID(ctx context.Context, performerID int) 
 		goqu.On(
 			table.Col(idColumn).Eq(joinTable.Col(sceneIDColumn)),
 		),
-	).Where(joinTable.Col(performerIDColumn).Eq(performerID))
+	).Where(joinTable.Col(performerIDColumn).Eq(performerID), goqu.L(sceneVisibleToken))
 
 	var ret int
 	if err := querySimple(ctx, q, &ret); err != nil {
@@ -867,7 +886,7 @@ func (qb *SceneStore) OCountByGroupID(ctx context.Context, groupID int) (int, er
 		goqu.On(
 			table.Col(idColumn).Eq(joinTable.Col(sceneIDColumn)),
 		),
-	).Where(joinTable.Col(groupIDColumn).Eq(groupID))
+	).Where(joinTable.Col(groupIDColumn).Eq(groupID), goqu.L(sceneVisibleToken))
 
 	var ret int
 	if err := querySimple(ctx, q, &ret); err != nil {
@@ -890,7 +909,7 @@ func (qb *SceneStore) OCountByStudioID(ctx context.Context, studioID int, depth 
 	q := dialect.Select(goqu.COUNT("*")).From(table).InnerJoin(
 		oHistoryTable,
 		goqu.On(table.Col(idColumn).Eq(oHistoryTable.Col(sceneIDColumn)), goqu.L(userCondition(scenesODatesTable))),
-	).Where(table.Col(studioIDColumn).Eq(studioID))
+	).Where(table.Col(studioIDColumn).Eq(studioID), goqu.L(sceneVisibleToken))
 
 	if err := querySimple(ctx, q, &ret); err != nil {
 		return 0, err
@@ -910,7 +929,7 @@ func (qb *SceneStore) oCountByStudioIDRecursive(ctx context.Context, studioID in
 	)
 	SELECT COUNT(*) FROM scenes
 	INNER JOIN scenes_o_dates ON scenes.id = scenes_o_dates.scene_id AND scenes_o_dates.user_id = ` + currentUserToken + `
-	WHERE scenes.studio_id IN (SELECT id FROM sub_studios)`
+	WHERE scenes.studio_id IN (SELECT id FROM sub_studios) AND `+sceneVisibleToken
 
 	rows, err := dbWrapper.QueryxContext(ctx, q, studioID, depth, depth)
 	if err != nil {
@@ -944,7 +963,7 @@ func (qb *SceneStore) FindByGroupID(ctx context.Context, groupID int) ([]*models
 }
 
 func (qb *SceneStore) Count(ctx context.Context) (int, error) {
-	q := dialect.Select(goqu.COUNT("*")).From(qb.table())
+	q := dialect.Select(goqu.COUNT("*")).From(qb.table()).Where(goqu.L(sceneVisibleToken))
 	return count(ctx, q)
 }
 
@@ -959,7 +978,7 @@ func (qb *SceneStore) Size(ctx context.Context) (float64, error) {
 	).InnerJoin(
 		fileTable,
 		goqu.On(scenesFilesJoinTable.Col(fileIDColumn).Eq(fileTable.Col(idColumn))),
-	)
+	).Where(goqu.L(sceneVisibleToken))
 	var ret float64
 	if err := querySimple(ctx, q, &ret); err != nil {
 		return 0, err
@@ -980,7 +999,7 @@ func (qb *SceneStore) Duration(ctx context.Context) (float64, error) {
 	).InnerJoin(
 		videoFileTable,
 		goqu.On(videoFileTable.Col("file_id").Eq(scenesFilesJoinTable.Col("file_id"))),
-	)
+	).Where(goqu.L(sceneVisibleToken))
 
 	var ret float64
 	if err := querySimple(ctx, q, &ret); err != nil {
@@ -1007,7 +1026,7 @@ func (qb *SceneStore) PlayDuration(ctx context.Context) (float64, error) {
 func (qb *SceneStore) CountByStudioID(ctx context.Context, studioID int) (int, error) {
 	table := qb.table()
 
-	q := dialect.Select(goqu.COUNT("*")).From(table).Where(table.Col(studioIDColumn).Eq(studioID))
+	q := dialect.Select(goqu.COUNT("*")).From(table).Where(table.Col(studioIDColumn).Eq(studioID), goqu.L(sceneVisibleToken))
 	return count(ctx, q)
 }
 
@@ -1140,7 +1159,7 @@ func (qb *SceneStore) queryGroupedFields(ctx context.Context, options models.Sce
 		return models.NewSceneQueryResult(qb), nil
 	}
 
-	aggregateQuery := sceneRepository.newQuery()
+	aggregateQuery := sceneRepository.newAggregateQuery()
 
 	if options.Count {
 		aggregateQuery.addColumn("COUNT(DISTINCT temp.id) as total")

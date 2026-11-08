@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"reflect"
 	"testing"
 )
 
@@ -36,15 +37,27 @@ func TestParseRole(t *testing.T) {
 
 func TestCurrent(t *testing.T) {
 	ctx := context.Background()
-	if got := Current(ctx); got != System {
+	if got := Current(ctx); !reflect.DeepEqual(got, System) {
 		t.Errorf("Current(empty) = %v, want System", got)
 	}
 	u := User{ID: 5, Username: "bob", Role: RoleViewer}
 	ctx = WithUser(ctx, u)
-	if got := Current(ctx); got != u {
+	if got := Current(ctx); !reflect.DeepEqual(got, u) {
 		t.Errorf("Current = %v, want %v", got, u)
 	}
 	if CurrentID(ctx) != 5 {
 		t.Error("CurrentID mismatch")
+	}
+}
+
+func TestLibraryRestricted(t *testing.T) {
+	if (User{Role: RoleViewer}).LibraryRestricted() {
+		t.Error("viewer without libraries must not be restricted")
+	}
+	if !(User{Role: RoleEditor, Libraries: []string{"/a"}}).LibraryRestricted() {
+		t.Error("editor with libraries must be restricted")
+	}
+	if (User{Role: RoleAdmin, Libraries: []string{"/a"}}).LibraryRestricted() {
+		t.Error("admin must never be restricted")
 	}
 }

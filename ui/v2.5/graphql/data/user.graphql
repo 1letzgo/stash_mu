@@ -2,6 +2,7 @@ fragment UserData on User {
   id
   username
   role
+  libraries
   created_at
   updated_at
 }

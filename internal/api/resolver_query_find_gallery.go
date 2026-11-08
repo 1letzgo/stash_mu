@@ -36,6 +36,7 @@ func (r *queryResolver) FindGalleries(ctx context.Context, galleryFilter *models
 
 		if len(idInts) > 0 {
 			galleries, err = r.repository.Gallery.FindMany(ctx, idInts)
+			galleries = compactNil(galleries)
 			total = len(galleries)
 		} else {
 			galleries, total, err = r.repository.Gallery.Query(ctx, galleryFilter, filter)

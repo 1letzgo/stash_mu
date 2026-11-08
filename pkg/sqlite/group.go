@@ -428,14 +428,14 @@ func (qb *GroupStore) FindByNames(ctx context.Context, names []string, nocase bo
 }
 
 func (qb *GroupStore) Count(ctx context.Context) (int, error) {
-	q := dialect.Select(goqu.COUNT("*")).From(qb.table())
+	q := dialect.Select(goqu.COUNT("*")).From(qb.table()).Where(goqu.L(groupVisibleToken))
 	return count(ctx, q)
 }
 
 func (qb *GroupStore) All(ctx context.Context) ([]*models.Group, error) {
 	table := qb.table()
 
-	return qb.getMany(ctx, qb.selectDataset().Order(
+	return qb.getMany(ctx, qb.selectDataset().Where(goqu.L(groupVisibleToken)).Order(
 		table.Col("name").Asc(),
 		table.Col(idColumn).Asc(),
 	))
@@ -639,7 +639,8 @@ func (qb *GroupStore) CountByPerformerID(ctx context.Context, performerID int) (
 	query := `SELECT COUNT(DISTINCT groups_scenes.group_id) AS count
 FROM groups_scenes
 INNER JOIN performers_scenes ON performers_scenes.scene_id = groups_scenes.scene_id
-WHERE performers_scenes.performer_id = ?
+INNER JOIN scenes ON scenes.id = groups_scenes.scene_id
+WHERE performers_scenes.performer_id = ? AND ` + sceneVisibleToken + `
 `
 	args := []interface{}{performerID}
 	return groupRepository.runCountQuery(ctx, query, args)
@@ -657,7 +658,7 @@ WHERE groups.studio_id = ?
 func (qb *GroupStore) CountByStudioID(ctx context.Context, studioID int) (int, error) {
 	query := `SELECT COUNT(1) AS count
 FROM groups
-WHERE groups.studio_id = ?
+WHERE groups.studio_id = ? AND ` + groupVisibleToken + `
 `
 	args := []interface{}{studioID}
 	return groupRepository.runCountQuery(ctx, query, args)

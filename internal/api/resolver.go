@@ -431,3 +431,15 @@ func firstError(errs []error) error {
 
 	return nil
 }
+
+// compactNil removes nil entries, which occur for objects that are not
+// visible to the current user.
+func compactNil[T any](s []*T) []*T {
+	ret := s[:0:0]
+	for _, v := range s {
+		if v != nil {
+			ret = append(ret, v)
+		}
+	}
+	return ret
+}

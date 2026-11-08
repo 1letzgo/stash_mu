@@ -955,7 +955,11 @@
       "new_password": "New password",
       "confirm_password": "Confirm new password",
       "password_changed": "Password changed",
-      "signed_in_as": "Signed in as"
+      "signed_in_as": "Signed in as",
+      "all_libraries": "All",
+      "libraries": "Libraries",
+      "libraries_admin": "Admins always have access to all libraries.",
+      "libraries_desc": "The user only sees scenes, images and galleries in the selected libraries, and only the performers, studios, tags and groups linked to them. Select none to allow all libraries."
     }
   },
   "configuration": "Configuration",

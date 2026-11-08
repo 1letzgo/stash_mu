@@ -14,6 +14,8 @@ type User struct {
 	PasswordHash string    `json:"-"`
 	Role         user.Role `json:"role"`
 	APIKey       string    `json:"-"`
+	// Libraries are the library paths the user may access. Empty means all.
+	Libraries []string `json:"libraries"`
 	// UIConfig holds the per-user overrides of the UI configuration.
 	UIConfig  map[string]interface{} `json:"ui_config"`
 	CreatedAt time.Time              `json:"created_at"`
@@ -23,9 +25,10 @@ type User struct {
 // Principal returns the lightweight representation used in request contexts.
 func (u User) Principal() user.User {
 	return user.User{
-		ID:       u.ID,
-		Username: u.Username,
-		Role:     u.Role,
+		ID:        u.ID,
+		Username:  u.Username,
+		Role:      u.Role,
+		Libraries: u.Libraries,
 	}
 }
 

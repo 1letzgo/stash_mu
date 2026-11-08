@@ -199,6 +199,21 @@ func (r *repository) executeFindQuery(ctx context.Context, body string, args []i
 }
 
 func (r *repository) newQuery() queryBuilder {
+	ret := queryBuilder{
+		repository: r,
+	}
+
+	// restrict to objects visible to the current user
+	if cond := visibleCondition(r.tableName); cond != "" {
+		ret.addWhere(cond)
+	}
+
+	return ret
+}
+
+// newAggregateQuery returns a query builder for aggregating over a subquery
+// of an already restricted query.
+func (r *repository) newAggregateQuery() queryBuilder {
 	return queryBuilder{
 		repository: r,
 	}

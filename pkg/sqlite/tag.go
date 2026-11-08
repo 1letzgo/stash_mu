@@ -705,14 +705,14 @@ func (qb *TagStore) CountByChildTagID(ctx context.Context, childID int) (int, er
 }
 
 func (qb *TagStore) Count(ctx context.Context) (int, error) {
-	q := dialect.Select(goqu.COUNT("*")).From(qb.table())
+	q := dialect.Select(goqu.COUNT("*")).From(qb.table()).Where(goqu.L(tagVisibleToken))
 	return count(ctx, q)
 }
 
 func (qb *TagStore) All(ctx context.Context) ([]*models.Tag, error) {
 	table := qb.table()
 
-	return qb.getMany(ctx, qb.selectDataset().Order(
+	return qb.getMany(ctx, qb.selectDataset().Where(goqu.L(tagVisibleToken)).Order(
 		goqu.L("COALESCE(tags.sort_name, tags.name) COLLATE NATURAL_CI").Asc(),
 		table.Col(idColumn).Asc(),
 	))

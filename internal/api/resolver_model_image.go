@@ -90,7 +90,7 @@ func (r *imageResolver) Galleries(ctx context.Context, obj *models.Image) (ret [
 
 	var errs []error
 	ret, errs = loaders.From(ctx).GalleryByID.LoadAll(obj.GalleryIDs.List())
-	return ret, firstError(errs)
+	return compactNil(ret), firstError(errs)
 }
 
 func (r *imageResolver) Rating100(ctx context.Context, obj *models.Image) (*int, error) {

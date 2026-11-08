@@ -239,7 +239,7 @@ func (qb *ImageStore) selectDataset() *goqu.SelectDataset {
 		folders.Col("path").As("primary_file_folder_path"),
 		files.Col("basename").As("primary_file_basename"),
 		checksum.Col("fingerprint").As("primary_file_checksum"),
-	)
+	).Where(goqu.L(imageVisibleToken))
 }
 
 func (qb *ImageStore) Create(ctx context.Context, newObject *models.CreateImageInput) error {
@@ -307,6 +307,10 @@ func (qb *ImageStore) Create(ctx context.Context, newObject *models.CreateImageI
 }
 
 func (qb *ImageStore) UpdatePartial(ctx context.Context, id int, partial models.ImagePartial) (*models.Image, error) {
+	if err := checkVisible(ctx, imageTable, id); err != nil {
+		return nil, err
+	}
+
 	r := imageRowRecord{
 		updateRecord{
 			Record: make(exp.Record),
@@ -367,6 +371,10 @@ func (qb *ImageStore) UpdatePartial(ctx context.Context, id int, partial models.
 }
 
 func (qb *ImageStore) Update(ctx context.Context, updatedObject *models.Image) error {
+	if err := checkVisible(ctx, imageTable, updatedObject.ID); err != nil {
+		return err
+	}
+
 	var r imageRow
 	r.fromImage(*updatedObject)
 
@@ -420,6 +428,10 @@ func (qb *ImageStore) Update(ctx context.Context, updatedObject *models.Image) e
 }
 
 func (qb *ImageStore) Destroy(ctx context.Context, id int) error {
+	if err := checkVisible(ctx, imageTable, id); err != nil {
+		return err
+	}
+
 	return qb.tableMgr.destroyExisting(ctx, []int{id})
 }
 
@@ -454,6 +466,10 @@ func (qb *ImageStore) FindMany(ctx context.Context, ids []int) ([]*models.Image,
 
 	for i := range images {
 		if images[i] == nil {
+			if libraryRestricted(ctx) {
+				// not visible to the current user
+				continue
+			}
 			return nil, fmt.Errorf("image with id %d not found", ids[i])
 		}
 	}
@@ -740,15 +756,18 @@ func (qb *ImageStore) FindByGalleryIDIndex(ctx context.Context, galleryID int, i
 
 func (qb *ImageStore) CountByGalleryID(ctx context.Context, galleryID int) (int, error) {
 	joinTable := goqu.T(galleriesImagesTable)
+	table := qb.table()
 
-	q := dialect.Select(goqu.COUNT("*")).From(joinTable).Where(joinTable.Col("gallery_id").Eq(galleryID))
+	q := dialect.Select(goqu.COUNT("*")).From(joinTable).InnerJoin(
+		table, goqu.On(table.Col(idColumn).Eq(joinTable.Col(imageIDColumn))),
+	).Where(joinTable.Col("gallery_id").Eq(galleryID), goqu.L(imageVisibleToken))
 	return count(ctx, q)
 }
 
 func (qb *ImageStore) OCountByPerformerID(ctx context.Context, performerID int) (int, error) {
 	table := qb.table()
 	joinTable := performersImagesJoinTable
-	q := dialect.Select(goqu.COALESCE(goqu.SUM(goqu.L(imageOCounterExpr)), 0)).From(table).InnerJoin(joinTable, goqu.On(table.Col(idColumn).Eq(joinTable.Col(imageIDColumn)))).Where(joinTable.Col(performerIDColumn).Eq(performerID))
+	q := dialect.Select(goqu.COALESCE(goqu.SUM(goqu.L(imageOCounterExpr)), 0)).From(table).InnerJoin(joinTable, goqu.On(table.Col(idColumn).Eq(joinTable.Col(imageIDColumn)))).Where(joinTable.Col(performerIDColumn).Eq(performerID), goqu.L(imageVisibleToken))
 
 	var ret int
 	if err := querySimple(ctx, q, &ret); err != nil {
@@ -768,6 +787,7 @@ func (qb *ImageStore) OCountByStudioID(ctx context.Context, studioID int, depth 
 	table := qb.table()
 	q := dialect.Select(goqu.COALESCE(goqu.SUM(goqu.L(imageOCounterExpr)), 0)).From(table).Where(
 		table.Col(studioIDColumn).Eq(studioID),
+		goqu.L(imageVisibleToken),
 	)
 
 	if err := querySimple(ctx, q, &ret); err != nil {
@@ -780,7 +800,7 @@ func (qb *ImageStore) OCountByStudioID(ctx context.Context, studioID int, depth 
 func (qb *ImageStore) OCount(ctx context.Context) (int, error) {
 	table := qb.table()
 
-	q := dialect.Select(goqu.COALESCE(goqu.SUM(goqu.L(imageOCounterExpr)), 0)).From(table)
+	q := dialect.Select(goqu.COALESCE(goqu.SUM(goqu.L(imageOCounterExpr)), 0)).From(table).Where(goqu.L(imageVisibleToken))
 	var ret int
 	if err := querySimple(ctx, q, &ret); err != nil {
 		return 0, err
@@ -799,7 +819,7 @@ func (qb *ImageStore) oCountByStudioIDRecursive(ctx context.Context, studioID in
 		WHERE ss.level < ? OR ? < 0
 	)
 	SELECT COALESCE(SUM(` + imageOCounterExpr + `), 0) FROM images
-	WHERE images.studio_id IN (SELECT id FROM sub_studios)`
+	WHERE images.studio_id IN (SELECT id FROM sub_studios) AND `+imageVisibleToken
 
 	rows, err := dbWrapper.QueryxContext(ctx, q, studioID, depth, depth)
 	if err != nil {
@@ -870,7 +890,7 @@ func (qb *ImageStore) FindByZipFileID(ctx context.Context, zipFileID models.File
 }
 
 func (qb *ImageStore) Count(ctx context.Context) (int, error) {
-	q := dialect.Select(goqu.COUNT("*")).From(qb.table())
+	q := dialect.Select(goqu.COUNT("*")).From(qb.table()).Where(goqu.L(imageVisibleToken))
 	return count(ctx, q)
 }
 
@@ -885,7 +905,7 @@ func (qb *ImageStore) Size(ctx context.Context) (float64, error) {
 	).InnerJoin(
 		fileTable,
 		goqu.On(imagesFilesJoinTable.Col(fileIDColumn).Eq(fileTable.Col(idColumn))),
-	)
+	).Where(goqu.L(imageVisibleToken))
 	var ret float64
 	if err := querySimple(ctx, q, &ret); err != nil {
 		return 0, err
@@ -975,7 +995,7 @@ func (qb *ImageStore) queryGroupedFields(ctx context.Context, options models.Ima
 		return models.NewImageQueryResult(qb), nil
 	}
 
-	aggregateQuery := imageRepository.newQuery()
+	aggregateQuery := imageRepository.newAggregateQuery()
 
 	if options.Count {
 		aggregateQuery.addColumn("COUNT(DISTINCT temp.id) as total")
