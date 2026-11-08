@@ -19,6 +19,7 @@ import Mousetrap from "mousetrap";
 
 import SessionUtils from "src/utils/session";
 import { Icon } from "src/components/Shared/Icon";
+import { useCurrentUser } from "src/hooks/CurrentUser";
 import { useConfigurationContext } from "src/hooks/Config";
 import { ManualStateContext } from "./Help/context";
 import { SettingsButton } from "./SettingsButton";
@@ -209,6 +210,7 @@ export const MainNavbar: React.FC = () => {
 
   // react-bootstrap typing bug
   const navbarRef = useRef<HTMLElement | null>(null);
+  const currentUser = useCurrentUser();
   const intl = useIntl();
 
   const maybeCollapse = useCallback((event: Event) => {
@@ -280,13 +282,23 @@ export const MainNavbar: React.FC = () => {
   function maybeRenderLogout() {
     if (SessionUtils.isLoggedIn()) {
       return (
-        <Button
-          className="minimal logout-button d-flex align-items-center"
-          href={`${baseURL}logout`}
-          title={intl.formatMessage({ id: "actions.logout" })}
-        >
-          <Icon icon={faSignOutAlt} />
-        </Button>
+        <>
+          {currentUser.multiUser && (
+            <span
+              className="nav-username text-muted d-flex align-items-center mr-1"
+              title={currentUser.me?.role}
+            >
+              {currentUser.me?.username}
+            </span>
+          )}
+          <Button
+            className="minimal logout-button d-flex align-items-center"
+            href={`${baseURL}logout`}
+            title={intl.formatMessage({ id: "actions.logout" })}
+          >
+            <Icon icon={faSignOutAlt} />
+          </Button>
+        </>
       );
     }
   }

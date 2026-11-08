@@ -17,6 +17,8 @@ import { SettingsServicesPanel } from "./SettingsServicesPanel";
 import { SettingsContext, useSettings } from "./context";
 import { SettingsLibraryPanel } from "./SettingsLibraryPanel";
 import { SettingsSecurityPanel } from "./SettingsSecurityPanel";
+import { SettingsUsersPanel } from "./SettingsUsersPanel";
+import { useCurrentUser } from "src/hooks/CurrentUser";
 import Changelog from "../Changelog/Changelog";
 import { TroubleshootingModeButton } from "../TroubleshootingMode/TroubleshootingModeButton";
 import { useTroubleshootingMode } from "../TroubleshootingMode/useTroubleshootingMode";
@@ -26,6 +28,7 @@ const validTabs = [
   "library",
   "interface",
   "security",
+  "users",
   "metadata-providers",
   "services",
   "system",
@@ -39,6 +42,18 @@ type TabKey = (typeof validTabs)[number];
 
 const defaultTab: TabKey = "tasks";
 
+// tabs that are available to users without the admin role
+const nonAdminTabs: TabKey[] = ["interface", "security", "changelog", "about"];
+const nonAdminDefaultTab: TabKey = "interface";
+
+// tabs that are only shown when user accounts are configured
+const multiUserTabs: TabKey[] = ["users"];
+
+function isTabAllowed(tab: TabKey, isAdmin: boolean, multiUser: boolean) {
+  if (multiUserTabs.includes(tab) && !multiUser) return false;
+  return isAdmin || nonAdminTabs.includes(tab);
+}
+
 function isTabKey(tab: string | null): tab is TabKey {
   return validTabs.includes(tab as TabKey);
 }
@@ -48,6 +63,7 @@ const SettingTabs: React.FC<{ tab: TabKey }> = ({ tab }) => {
   const { isActive: troubleshootingModeActive } = useTroubleshootingMode();
 
   const titleProps = useTitleProps({ id: "settings" });
+  const { isAdmin, multiUser } = useCurrentUser();
 
   return (
     <Tab.Container activeKey={tab} id="configuration-tabs">
@@ -55,90 +71,123 @@ const SettingTabs: React.FC<{ tab: TabKey }> = ({ tab }) => {
       <Row>
         <Col id="settings-menu-container" sm={3} md={3} xl={2}>
           <Nav variant="pills" className="flex-column">
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=tasks">
-                <Nav.Link eventKey="tasks">
-                  <FormattedMessage id="config.categories.tasks" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=library">
-                <Nav.Link eventKey="library">
-                  <FormattedMessage id="library" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=interface">
-                <Nav.Link eventKey="interface">
-                  <FormattedMessage id="config.categories.interface" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=security">
-                <Nav.Link eventKey="security">
-                  <FormattedMessage id="config.categories.security" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=metadata-providers">
-                <Nav.Link eventKey="metadata-providers">
-                  <FormattedMessage id="config.categories.metadata_providers" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=services">
-                <Nav.Link eventKey="services">
-                  <FormattedMessage id="config.categories.services" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=system">
-                <Nav.Link eventKey="system">
-                  <FormattedMessage id="config.categories.system" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=plugins">
-                <Nav.Link eventKey="plugins">
-                  <FormattedMessage id="config.categories.plugins" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=logs">
-                <Nav.Link eventKey="logs">
-                  <FormattedMessage id="config.categories.logs" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=tools">
-                <Nav.Link eventKey="tools">
-                  <FormattedMessage id="config.categories.tools" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=changelog">
-                <Nav.Link eventKey="changelog">
-                  <FormattedMessage id="config.categories.changelog" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
-            <Nav.Item>
-              <LinkContainer to="/settings?tab=about">
-                <Nav.Link eventKey="about">
-                  <FormattedMessage id="config.categories.about" />
-                </Nav.Link>
-              </LinkContainer>
-            </Nav.Item>
+            {isTabAllowed("tasks", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=tasks">
+                  <Nav.Link eventKey="tasks">
+                    <FormattedMessage id="config.categories.tasks" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("library", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=library">
+                  <Nav.Link eventKey="library">
+                    <FormattedMessage id="library" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("interface", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=interface">
+                  <Nav.Link eventKey="interface">
+                    <FormattedMessage id="config.categories.interface" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("security", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=security">
+                  <Nav.Link eventKey="security">
+                    <FormattedMessage id="config.categories.security" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("users", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=users">
+                  <Nav.Link eventKey="users">
+                    <FormattedMessage id="config.categories.users" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("metadata-providers", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=metadata-providers">
+                  <Nav.Link eventKey="metadata-providers">
+                    <FormattedMessage id="config.categories.metadata_providers" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("services", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=services">
+                  <Nav.Link eventKey="services">
+                    <FormattedMessage id="config.categories.services" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("system", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=system">
+                  <Nav.Link eventKey="system">
+                    <FormattedMessage id="config.categories.system" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("plugins", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=plugins">
+                  <Nav.Link eventKey="plugins">
+                    <FormattedMessage id="config.categories.plugins" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("logs", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=logs">
+                  <Nav.Link eventKey="logs">
+                    <FormattedMessage id="config.categories.logs" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("tools", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=tools">
+                  <Nav.Link eventKey="tools">
+                    <FormattedMessage id="config.categories.tools" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("changelog", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=changelog">
+                  <Nav.Link eventKey="changelog">
+                    <FormattedMessage id="config.categories.changelog" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
+            {isTabAllowed("about", isAdmin, multiUser) && (
+              <Nav.Item>
+                <LinkContainer to="/settings?tab=about">
+                  <Nav.Link eventKey="about">
+                    <FormattedMessage id="config.categories.about" />
+                  </Nav.Link>
+                </LinkContainer>
+              </Nav.Item>
+            )}
             <Nav.Item>
               <div className="advanced-switch">
                 <Form.Label htmlFor="advanced-settings">
@@ -171,6 +220,11 @@ const SettingTabs: React.FC<{ tab: TabKey }> = ({ tab }) => {
             <Tab.Pane eventKey="security">
               <SettingsSecurityPanel />
             </Tab.Pane>
+            {isTabAllowed("users", isAdmin, multiUser) && (
+              <Tab.Pane eventKey="users" unmountOnExit>
+                <SettingsUsersPanel />
+              </Tab.Pane>
+            )}
             <Tab.Pane eventKey="tasks">
               <SettingsTasksPanel />
             </Tab.Pane>
@@ -208,13 +262,16 @@ const SettingTabs: React.FC<{ tab: TabKey }> = ({ tab }) => {
 export const Settings: React.FC = () => {
   const location = useLocation();
   const tab = new URLSearchParams(location.search).get("tab");
+  const { isAdmin, multiUser, loading } = useCurrentUser();
 
-  if (!isTabKey(tab)) {
+  if (loading) return null;
+
+  if (!isTabKey(tab) || !isTabAllowed(tab, isAdmin, multiUser)) {
     return (
       <Redirect
         to={{
           ...location,
-          search: `tab=${defaultTab}`,
+          search: `tab=${isAdmin ? defaultTab : nonAdminDefaultTab}`,
         }}
       />
     );

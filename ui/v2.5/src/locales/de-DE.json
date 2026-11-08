@@ -272,7 +272,8 @@
             "services": "Dienste",
             "system": "System",
             "tasks": "Aufgaben",
-            "tools": "Werkzeuge"
+            "tools": "Werkzeuge",
+            "users": "Benutzer"
         },
         "dlna": {
             "allow_temp_ip": "Erlaube {tempIP}",
@@ -912,6 +913,34 @@
         "advanced_mode": "Fortgeschrittener Modus",
         "changelog": {
             "header": "Änderungshistorie"
+        },
+        "users": {
+            "add_user": "Benutzer hinzufügen",
+            "api_key_cleared": "API-Schlüssel entfernt",
+            "change_password": "Passwort ändern",
+            "confirm_password": "Neues Passwort bestätigen",
+            "current_password": "Aktuelles Passwort",
+            "delete_user": "Benutzer löschen",
+            "delete_user_confirm": "Benutzer {username} löschen? Bewertungen, Wiedergabeverlauf, O-Zähler, gespeicherte Filter und Einstellungen dieses Benutzers werden entfernt.",
+            "description": "Jeder Benutzer hat ein eigenes Login, einen eigenen API-Schlüssel sowie eigene Bewertungen, Wiedergabeverlauf, O-Zähler, gespeicherte Filter und Oberflächeneinstellungen. Die Rolle bestimmt, was ein Benutzer darf.",
+            "edit_user": "Benutzer bearbeiten",
+            "new_api_key": "Neuer API-Schlüssel für {username}. Ein bisheriger Schlüssel funktioniert nicht mehr.",
+            "new_password": "Neues Passwort",
+            "password_changed": "Passwort geändert",
+            "password_unchanged": "Leer lassen, um das aktuelle Passwort zu behalten",
+            "role": "Rolle",
+            "role_desc": {
+                "admin": "Uneingeschränkter Zugriff, einschließlich Einstellungen, Aufgaben, Löschen von Dateien und Benutzerverwaltung.",
+                "editor": "Kann zusätzlich Metadaten bearbeiten (Szenen, Darsteller, Studios, Tags, Gruppen, Marker). Kann keine Einstellungen ändern, keine Aufgaben starten und keine Dateien löschen.",
+                "viewer": "Kann Inhalte durchsuchen und abspielen sowie eigene Bewertungen, Wiedergaben und O-Zähler erfassen."
+            },
+            "roles": {
+                "admin": "Administrator",
+                "editor": "Bearbeiter",
+                "viewer": "Betrachter"
+            },
+            "signed_in_as": "Angemeldet als",
+            "you": "du"
         }
     },
     "configuration": "Konfiguration",

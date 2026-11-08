@@ -278,7 +278,8 @@
       "services": "Services",
       "system": "System",
       "tasks": "Tasks",
-      "tools": "Tools"
+      "tools": "Tools",
+      "users": "Users"
     },
     "changelog": {
       "header": "Changelog"
@@ -927,6 +928,34 @@
         "description": "When enabled, funscripts will be served directly from Stash to your Handy device without using the third party Handy server. Requires that Stash be accessible from your Handy device, and that an API key is generated if Stash has credentials configured.",
         "heading": "Serve funscripts directly"
       }
+    },
+    "users": {
+      "add_user": "Add user",
+      "edit_user": "Edit user",
+      "delete_user": "Delete user",
+      "delete_user_confirm": "Delete user {username}? Their ratings, play history, o-counts, saved filters and settings will be removed.",
+      "description": "Each user has their own login, API key, ratings, play history, o-counts, saved filters and interface settings. The role controls what a user may do.",
+      "role": "Role",
+      "roles": {
+        "viewer": "Viewer",
+        "editor": "Editor",
+        "admin": "Admin"
+      },
+      "role_desc": {
+        "viewer": "Can browse and play content, and rate content and record plays and o-counts for themselves.",
+        "editor": "Can additionally edit metadata (scenes, performers, studios, tags, groups, markers). Cannot change settings, run tasks or delete files.",
+        "admin": "Unrestricted access, including settings, tasks, file deletion and user management."
+      },
+      "password_unchanged": "Leave empty to keep the current password",
+      "you": "you",
+      "new_api_key": "New API key for {username}. Any previous key no longer works.",
+      "api_key_cleared": "API key cleared",
+      "change_password": "Change password",
+      "current_password": "Current password",
+      "new_password": "New password",
+      "confirm_password": "Confirm new password",
+      "password_changed": "Password changed",
+      "signed_in_as": "Signed in as"
     }
   },
   "configuration": "Configuration",
