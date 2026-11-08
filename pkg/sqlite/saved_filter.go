@@ -11,6 +11,7 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/jmoiron/sqlx"
+	"gopkg.in/guregu/null.v4"
 
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/models"
@@ -28,6 +29,7 @@ type savedFilterRow struct {
 	FindFilter   string            `db:"find_filter"`
 	ObjectFilter string            `db:"object_filter"`
 	UIOptions    string            `db:"ui_options"`
+	UserID       null.Int          `db:"user_id"`
 }
 
 func encodeJSONOrEmpty(v interface{}) string {
@@ -62,13 +64,15 @@ func (r *savedFilterRow) fromSavedFilter(o models.SavedFilter) {
 	r.FindFilter = encodeJSONOrEmpty(o.FindFilter)
 	r.ObjectFilter = encodeJSONOrEmpty(o.ObjectFilter)
 	r.UIOptions = encodeJSONOrEmpty(o.UIOptions)
+	r.UserID = intFromPtr(o.UserID)
 }
 
 func (r *savedFilterRow) resolve() *models.SavedFilter {
 	ret := &models.SavedFilter{
-		ID:   r.ID,
-		Mode: r.Mode,
-		Name: r.Name,
+		ID:     r.ID,
+		Mode:   r.Mode,
+		Name:   r.Name,
+		UserID: nullIntPtr(r.UserID),
 	}
 
 	// decode the filters from json
@@ -107,8 +111,12 @@ func (qb *SavedFilterStore) table() exp.IdentifierExpression {
 	return qb.tableMgr.table
 }
 
+// selectDataset selects the filters visible to the current user: shared
+// filters and the user's own filters.
 func (qb *SavedFilterStore) selectDataset() *goqu.SelectDataset {
-	return dialect.From(qb.table()).Select(qb.table().All())
+	return dialect.From(qb.table()).Select(qb.table().All()).Where(
+		goqu.L("(" + savedFilterTable + "." + userIDColumn + " IS NULL OR " + userCondition(savedFilterTable) + ")"),
+	)
 }
 
 func (qb *SavedFilterStore) Create(ctx context.Context, newObject *models.SavedFilter) error {

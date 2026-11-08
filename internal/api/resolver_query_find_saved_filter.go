@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/stashapp/stash/internal/manager/config"
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/utils"
 )
@@ -42,9 +41,7 @@ func (r *queryResolver) FindSavedFilters(ctx context.Context, mode *models.Filte
 
 func (r *queryResolver) FindDefaultFilter(ctx context.Context, mode models.FilterMode) (ret *models.SavedFilter, err error) {
 	// deprecated - read from the config in the meantime
-	config := config.GetInstance()
-
-	uiConfig := config.GetUIConfiguration()
+	uiConfig := getUIConfig(ctx)
 	if uiConfig == nil {
 		return nil, nil
 	}

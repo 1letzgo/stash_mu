@@ -240,3 +240,34 @@ func TestUserScopedRatings(t *testing.T) {
 		return nil
 	})
 }
+
+func TestUserScopedSavedFilters(t *testing.T) {
+	withRollbackTxn(func(ctx context.Context) error {
+		viewer := viewerCtx(ctx)
+		viewerID := userIDs[userIdxViewer]
+
+		shared, err := db.SavedFilter.FindByMode(ctx, models.FilterModeScenes)
+		assert.NoError(t, err)
+
+		f := &models.SavedFilter{Mode: models.FilterModeScenes, Name: "mine", UserID: &viewerID}
+		assert.NoError(t, db.SavedFilter.Create(viewer, f))
+
+		// the viewer sees shared filters and their own
+		got, err := db.SavedFilter.FindByMode(viewer, models.FilterModeScenes)
+		assert.NoError(t, err)
+		assert.Len(t, got, len(shared)+1)
+
+		// other users don't see it
+		got, err = db.SavedFilter.FindByMode(ctx, models.FilterModeScenes)
+		assert.NoError(t, err)
+		assert.Len(t, got, len(shared))
+		found, err := db.SavedFilter.Find(ctx, f.ID)
+		assert.NoError(t, err)
+		assert.Nil(t, found)
+
+		// the same name may be used by another user
+		other := &models.SavedFilter{Mode: models.FilterModeScenes, Name: "mine"}
+		assert.NoError(t, db.SavedFilter.Create(ctx, other))
+		return nil
+	})
+}

@@ -710,34 +710,29 @@ func (r *mutationResolver) GenerateAPIKey(ctx context.Context, input GenerateAPI
 }
 
 func (r *mutationResolver) ConfigureUI(ctx context.Context, input map[string]interface{}, partial map[string]interface{}) (map[string]interface{}, error) {
-	c := config.GetInstance()
+	cfg := getUIConfig(ctx)
 
 	if input != nil {
 		// #5483 - convert JSON numbers to float64 or int64
-		input = convertMapJSONNumbers(input)
-		c.SetUIConfiguration(input)
+		cfg = convertMapJSONNumbers(input)
 	}
 
 	if partial != nil {
 		// #5483 - convert JSON numbers to float64 or int64
 		partial = convertMapJSONNumbers(partial)
 		// merge partial into existing config
-		existing := c.GetUIConfiguration()
-		utils.MergeMaps(existing, partial)
-		c.SetUIConfiguration(existing)
+		utils.MergeMaps(cfg, partial)
 	}
 
-	if err := c.Write(); err != nil {
-		return c.GetUIConfiguration(), err
+	if err := setUIConfig(ctx, cfg); err != nil {
+		return getUIConfig(ctx), err
 	}
 
-	return c.GetUIConfiguration(), nil
+	return getUIConfig(ctx), nil
 }
 
 func (r *mutationResolver) ConfigureUISetting(ctx context.Context, key string, value interface{}) (map[string]interface{}, error) {
-	c := config.GetInstance()
-
-	cfg := utils.NestedMap(c.GetUIConfiguration())
+	cfg := utils.NestedMap(getUIConfig(ctx))
 
 	// #5483 - convert JSON numbers to float64 or int64
 	if m, ok := value.(map[string]interface{}); ok {

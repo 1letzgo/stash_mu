@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/stashapp/stash/internal/manager/config"
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/utils"
 )
@@ -39,12 +38,19 @@ func (r *mutationResolver) SaveFilter(ctx context.Context, input SaveFilterInput
 		}
 
 		if id == nil {
+			f.UserID = newSavedFilterOwner(ctx)
 			err = qb.Create(ctx, &f)
 			ret = &f
 		} else {
+			existing, err := checkSavedFilterWritable(ctx, qb, *id)
+			if err != nil {
+				return err
+			}
 			f.ID = *id
+			f.UserID = existing.UserID
 			err = qb.Update(ctx, &f)
 			ret = &f
+			return err
 		}
 
 		return err
@@ -61,6 +67,9 @@ func (r *mutationResolver) DestroySavedFilter(ctx context.Context, input Destroy
 	}
 
 	if err := r.withTxn(ctx, func(ctx context.Context) error {
+		if _, err := checkSavedFilterWritable(ctx, r.repository.SavedFilter, id); err != nil {
+			return err
+		}
 		return r.repository.SavedFilter.Destroy(ctx, id)
 	}); err != nil {
 		return false, err
@@ -71,9 +80,7 @@ func (r *mutationResolver) DestroySavedFilter(ctx context.Context, input Destroy
 
 func (r *mutationResolver) SetDefaultFilter(ctx context.Context, input SetDefaultFilterInput) (bool, error) {
 	// deprecated - write to the config in the meantime
-	config := config.GetInstance()
-
-	uiConfig := config.GetUIConfiguration()
+	uiConfig := getUIConfig(ctx)
 	if uiConfig == nil {
 		uiConfig = make(map[string]interface{})
 	}
@@ -83,9 +90,8 @@ func (r *mutationResolver) SetDefaultFilter(ctx context.Context, input SetDefaul
 	if input.FindFilter == nil && input.ObjectFilter == nil && input.UIOptions == nil {
 		// clearing
 		m.Delete("defaultFilters." + strings.ToLower(input.Mode.String()))
-		config.SetUIConfiguration(m)
 
-		if err := config.Write(); err != nil {
+		if err := setUIConfig(ctx, m); err != nil {
 			return false, err
 		}
 
@@ -109,9 +115,7 @@ func (r *mutationResolver) SetDefaultFilter(ctx context.Context, input SetDefaul
 
 	m.Set("defaultFilters."+strings.ToLower(input.Mode.String()), subMap)
 
-	config.SetUIConfiguration(m)
-
-	if err := config.Write(); err != nil {
+	if err := setUIConfig(ctx, m); err != nil {
 		return false, err
 	}
 

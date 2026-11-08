@@ -68,4 +68,7 @@ type SavedFilter struct {
 	FindFilter   *FindFilterType        `json:"find_filter"`
 	ObjectFilter map[string]interface{} `json:"object_filter"`
 	UIOptions    map[string]interface{} `json:"ui_options"`
+	// UserID is the owner of the filter. Nil if the filter is shared by all
+	// users.
+	UserID *int `json:"-"`
 }
