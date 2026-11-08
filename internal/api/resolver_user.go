@@ -98,8 +98,8 @@ func (r *mutationResolver) UserGenerateAPIKey(ctx context.Context, input UserGen
 		return "", fmt.Errorf("converting id: %w", err)
 	}
 
-	clear := input.Clear != nil && *input.Clear
-	return manager.GetInstance().Users.GenerateAPIKey(ctx, id, clear)
+	clearKey := input.Clear != nil && *input.Clear
+	return manager.GetInstance().Users.GenerateAPIKey(ctx, id, clearKey)
 }
 
 func (r *mutationResolver) ChangePassword(ctx context.Context, input UserChangePasswordInput) (bool, error) {

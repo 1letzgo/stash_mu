@@ -437,7 +437,7 @@ func (s *UserService) Destroy(ctx context.Context, id int) error {
 
 // GenerateAPIKey generates (or clears, if clear is true) the api key of a
 // user. Any previous key stops working immediately.
-func (s *UserService) GenerateAPIKey(ctx context.Context, id int, clear bool) (string, error) {
+func (s *UserService) GenerateAPIKey(ctx context.Context, id int, clearKey bool) (string, error) {
 	var ret *models.User
 	if err := s.withTxn(ctx, func(ctx context.Context, qb models.UserReaderWriter) error {
 		u, err := qb.Find(ctx, id)
@@ -449,7 +449,7 @@ func (s *UserService) GenerateAPIKey(ctx context.Context, id int, clear bool) (s
 		}
 
 		u.APIKey = ""
-		if !clear {
+		if !clearKey {
 			key, err := GenerateAPIKey(u.Username)
 			if err != nil {
 				return fmt.Errorf("generating api key: %w", err)

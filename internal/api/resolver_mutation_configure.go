@@ -685,8 +685,8 @@ func (r *mutationResolver) GenerateAPIKey(ctx context.Context, input GenerateAPI
 
 	if users := manager.GetInstance().Users; users.HasUsers() {
 		// multi-user: generate the key of the current user
-		clear := input.Clear != nil && *input.Clear
-		return users.GenerateAPIKey(ctx, user.CurrentID(ctx), clear)
+		clearKey := input.Clear != nil && *input.Clear
+		return users.GenerateAPIKey(ctx, user.CurrentID(ctx), clearKey)
 	}
 
 	var newAPIKey string
