@@ -798,7 +798,7 @@ func (qb *ImageStore) oCountByStudioIDRecursive(ctx context.Context, studioID in
 		INNER JOIN sub_studios ss ON s.parent_id = ss.id
 		WHERE ss.level < ? OR ? < 0
 	)
-	SELECT COALESCE(SUM(`+imageOCounterExpr+`), 0) FROM images
+	SELECT COALESCE(SUM(` + imageOCounterExpr + `), 0) FROM images
 	WHERE images.studio_id IN (SELECT id FROM sub_studios)`
 
 	rows, err := dbWrapper.QueryxContext(ctx, q, studioID, depth, depth)
