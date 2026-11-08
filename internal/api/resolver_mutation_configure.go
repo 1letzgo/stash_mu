@@ -25,6 +25,11 @@ import (
 var ErrOverriddenConfig = errors.New("cannot set overridden value")
 
 func (r *mutationResolver) Setup(ctx context.Context, input manager.SetupInput) (bool, error) {
+	// setup may only be run on a new system
+	if !config.GetInstance().IsNewSystem() {
+		return false, errors.New("stash is already set up")
+	}
+
 	err := manager.GetInstance().Setup(ctx, input)
 	return err == nil, err
 }

@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/stashapp/stash/pkg/user"
 	"io"
 	"io/fs"
 	"net/http"
@@ -191,6 +192,7 @@ func Initialize() (*Server, error) {
 
 	gqlSrv.SetQueryCache(gqlLru.New[*ast.QueryDocument](1000))
 	gqlSrv.Use(gqlExtension.Introspection{})
+	gqlSrv.AroundFields(authorizationMiddleware)
 
 	gqlSrv.SetErrorPresenter(gqlErrorHandler)
 
@@ -219,7 +221,7 @@ func Initialize() (*Server, error) {
 	r.Mount("/studio", server.getStudioRoutes())
 	r.Mount("/group", server.getGroupRoutes())
 	r.Mount("/tag", server.getTagRoutes())
-	r.Mount("/downloads", server.getDownloadsRoutes())
+	r.With(requireRoleHandler(user.RoleAdmin)).Mount("/downloads", server.getDownloadsRoutes())
 	r.Mount("/plugin", server.getPluginRoutes())
 
 	r.HandleFunc("/css", cssHandler(cfg))

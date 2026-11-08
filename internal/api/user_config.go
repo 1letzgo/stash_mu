@@ -5,18 +5,21 @@ import (
 
 	"github.com/stashapp/stash/internal/manager"
 	"github.com/stashapp/stash/pkg/logger"
+	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/user"
 )
 
 // personaliseConfigResult adjusts the configuration result for the current
-// user: credentials and api key are those of the current user.
+// user: credentials and api key are those of the current user, and server
+// internals are hidden from non-admin users.
 func personaliseConfigResult(ctx context.Context, ret *ConfigResult) {
 	users := manager.GetInstance().Users
 	if !users.HasUsers() {
 		return
 	}
 
-	u, ok := users.ByID(user.CurrentID(ctx))
+	current := user.Current(ctx)
+	u, ok := users.ByID(current.ID)
 	if !ok {
 		return
 	}
@@ -25,7 +28,39 @@ func personaliseConfigResult(ctx context.Context, ret *ConfigResult) {
 		ret.General.Username = u.Username
 		ret.General.Password = u.PasswordHash
 		ret.General.APIKey = u.APIKey
+
+		if !current.IsAdmin() {
+			redactConfigGeneral(ret.General)
+		}
 	}
+}
+
+// redactConfigGeneral removes server paths and secrets from the general
+// configuration for non-admin users.
+func redactConfigGeneral(g *ConfigGeneralResult) {
+	g.DatabasePath = ""
+	g.BackupDirectoryPath = ""
+	g.DeleteTrashPath = ""
+	g.GeneratedPath = ""
+	g.MetadataPath = ""
+	g.ConfigFilePath = ""
+	g.ScrapersPath = ""
+	g.PluginsPath = ""
+	g.CachePath = ""
+	g.BlobsPath = ""
+	g.FfmpegPath = ""
+	g.FfprobePath = ""
+	g.PythonPath = ""
+	g.LogFile = nil
+
+	// keep stash-box endpoints so that editors can submit, but hide keys
+	boxes := make([]*models.StashBox, len(g.StashBoxes))
+	for i, b := range g.StashBoxes {
+		redacted := *b
+		redacted.APIKey = ""
+		boxes[i] = &redacted
+	}
+	g.StashBoxes = boxes
 }
 
 // updateCurrentUserCredentials applies a username/password change from the
