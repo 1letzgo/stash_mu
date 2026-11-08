@@ -117,11 +117,18 @@ func (t *ImportTask) Start(ctx context.Context) {
 	}
 
 	if t.Reset {
+		// user accounts are not part of the metadata export - keep them
+		users := GetInstance().Users.All()
+
 		err := t.resetter.Reset()
 
 		if err != nil {
 			logger.Errorf("Error resetting database: %v", err)
 			return
+		}
+
+		if err := GetInstance().Users.Restore(ctx, users); err != nil {
+			logger.Errorf("Error restoring user accounts after reset: %v", err)
 		}
 	}
 

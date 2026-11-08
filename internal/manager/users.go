@@ -510,3 +510,37 @@ func (s *UserService) EnsurePrimaryFromConfig(ctx context.Context) error {
 	s.snapshot()
 	return nil
 }
+
+type userRestorer interface {
+	CreateWithID(ctx context.Context, u *models.User) error
+}
+
+// Restore re-creates the provided users with their ids, for example after the
+// database has been reset by a full import. Users that already exist are
+// skipped.
+func (s *UserService) Restore(ctx context.Context, users []models.User) error {
+	if len(users) == 0 {
+		return nil
+	}
+
+	restorer, ok := s.Repository.User.(userRestorer)
+	if !ok {
+		return fmt.Errorf("user repository does not support restoring users")
+	}
+
+	return s.withTxn(ctx, func(ctx context.Context, qb models.UserReaderWriter) error {
+		for i := range users {
+			existing, err := qb.Find(ctx, users[i].ID)
+			if err != nil {
+				return err
+			}
+			if existing != nil {
+				continue
+			}
+			if err := restorer.CreateWithID(ctx, &users[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

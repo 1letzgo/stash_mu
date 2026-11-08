@@ -108,6 +108,28 @@ func (qb *UserStore) Create(ctx context.Context, newObject *models.User) error {
 	return nil
 }
 
+// CreateWithID inserts a user keeping its id. Used to restore users after
+// the database has been reset.
+func (qb *UserStore) CreateWithID(ctx context.Context, u *models.User) error {
+	var r userRow
+	r.fromUser(*u)
+
+	q := dialect.Insert(qb.table()).Rows(goqu.Record{
+		"id":            u.ID,
+		"username":      r.Username,
+		"password_hash": r.PasswordHash,
+		"role":          r.Role,
+		"api_key":       r.APIKey,
+		"ui_config":     r.UIConfig,
+		"created_at":    r.CreatedAt,
+		"updated_at":    r.UpdatedAt,
+	})
+	if _, err := exec(ctx, q); err != nil {
+		return fmt.Errorf("restoring user %d: %w", u.ID, err)
+	}
+	return nil
+}
+
 func (qb *UserStore) Update(ctx context.Context, updatedObject *models.User) error {
 	var r userRow
 	r.fromUser(*updatedObject)
