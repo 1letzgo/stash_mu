@@ -819,7 +819,7 @@ func (qb *ImageStore) oCountByStudioIDRecursive(ctx context.Context, studioID in
 		WHERE ss.level < ? OR ? < 0
 	)
 	SELECT COALESCE(SUM(` + imageOCounterExpr + `), 0) FROM images
-	WHERE images.studio_id IN (SELECT id FROM sub_studios) AND `+imageVisibleToken
+	WHERE images.studio_id IN (SELECT id FROM sub_studios) AND ` + imageVisibleToken
 
 	rows, err := dbWrapper.QueryxContext(ctx, q, studioID, depth, depth)
 	if err != nil {

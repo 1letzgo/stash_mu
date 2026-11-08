@@ -929,7 +929,7 @@ func (qb *SceneStore) oCountByStudioIDRecursive(ctx context.Context, studioID in
 	)
 	SELECT COUNT(*) FROM scenes
 	INNER JOIN scenes_o_dates ON scenes.id = scenes_o_dates.scene_id AND scenes_o_dates.user_id = ` + currentUserToken + `
-	WHERE scenes.studio_id IN (SELECT id FROM sub_studios) AND `+sceneVisibleToken
+	WHERE scenes.studio_id IN (SELECT id FROM sub_studios) AND ` + sceneVisibleToken
 
 	rows, err := dbWrapper.QueryxContext(ctx, q, studioID, depth, depth)
 	if err != nil {
