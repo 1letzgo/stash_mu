@@ -1,4 +1,4 @@
-# Multi-User für Stash (Fork `1letzgo/stash`, Branch `feature/multi-user`)
+# Multi-User für Stash (Fork `1letzgo/stash_mu`, Branch `feature/multi-user`)
 
 Dieser Fork ergänzt Stash um mehrere Benutzer mit Rollen. Die Rechte werden serverseitig geprüft, Bewertungen und Verlauf gibt es pro Benutzer. Die bestehende API bleibt kompatibel: `ApiKey`-Header, `?apikey=`, Session-Cookie und Login-Formular funktionieren unverändert. Clients wie stashy brauchen keine Anpassung.
 
