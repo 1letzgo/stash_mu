@@ -237,11 +237,11 @@ export const SettingsUsersPanel: React.FC = () => {
   }
 
   return (
-    <SettingSection headingID="config.categories.users">
-      <div className="setting-group">
-        <div className="sub-heading mb-3">
-          <FormattedMessage id="config.users.description" />
-        </div>
+    <SettingSection
+      headingID="config.categories.users"
+      subHeadingID="config.users.description"
+    >
+      <div className="content">
         <Table striped size="sm" className="users-table">
           <thead>
             <tr>
@@ -314,7 +314,11 @@ export const SettingsUsersPanel: React.FC = () => {
             ))}
           </tbody>
         </Table>
-        <Button onClick={() => setEditing(null)}>
+        <Button
+          className="mt-2"
+          variant="secondary"
+          onClick={() => setEditing(null)}
+        >
           <FormattedMessage id="config.users.add_user" />
         </Button>
       </div>
