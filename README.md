@@ -1,3 +1,3 @@
 # Stash (Multi-User)
 
-Wie [Stash](https://github.com/stashapp/stash), ergänzt um Multi-User-Unterstützung ([MULTIUSER.md](MULTIUSER.md)).
+Same as [Stash](https://github.com/stashapp/stash), with added multi-user support ([MULTIUSER.md](MULTIUSER.md)).
