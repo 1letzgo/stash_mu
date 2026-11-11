@@ -1,4 +1,4 @@
-# Multi-User für Stash (Fork `1letzgo/stash_mu`, Branch `feature/multi-user`)
+# Multi-User für Stash (Fork `1letzgo/stash_mu`, Branch `main`)
 
 Dieser Fork ergänzt Stash um mehrere Benutzer mit Rollen. Die Rechte werden serverseitig geprüft, Bewertungen und Verlauf gibt es pro Benutzer. Die bestehende API bleibt kompatibel: `ApiKey`-Header, `?apikey=`, Session-Cookie und Login-Formular funktionieren unverändert. Clients wie stashy brauchen keine Anpassung.
 
@@ -66,7 +66,7 @@ Getestet mit einer Datenbank des offiziellen Stash (Commit `aefc937`, Schema 86)
 
 ## Docker-Image
 
-Der Workflow `.github/workflows/multiuser-image.yml` baut bei jedem Push auf `feature/multi-user` das Image `ghcr.io/1letzgo/stash:multi-user`. Im Fork müssen dafür GitHub Actions aktiviert sein. Das Paket ist anfangs privat: entweder auf GHCR öffentlich schalten oder auf dem Docker-Host `docker login ghcr.io` ausführen.
+Der Workflow `.github/workflows/multiuser-image.yml` baut bei jedem Push auf `main` das Image `ghcr.io/1letzgo/stash:multi-user`. Im Fork müssen dafür GitHub Actions aktiviert sein. Das Paket ist anfangs privat: entweder auf GHCR öffentlich schalten oder auf dem Docker-Host `docker login ghcr.io` ausführen.
 
 Testbetrieb auf Unraid als **neuer, eigener Container**:
 

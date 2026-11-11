@@ -5,7 +5,7 @@ name: Multi-user Docker image
 
 on:
   push:
-    branches: [feature/multi-user]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
